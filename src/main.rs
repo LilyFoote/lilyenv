@@ -195,8 +195,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug, Clone)]
 enum Commands {
-    List,
-    Download { version: String },
+    Download { version: Option<String> },
     Virtualenv { version: String, project: String },
     Activate { version: String, project: String },
 }
@@ -209,7 +208,7 @@ fn main() {
         .build()
         .unwrap();
     match cli.cmd {
-        Commands::List => {
+        Commands::Download { version: None } => {
             let mut releases = rt.block_on(releases("x86_64-unknown-linux-gnu"));
             releases.sort_unstable_by_key(|p| parse_version(p).unwrap().1);
             for python in releases {
@@ -217,9 +216,9 @@ fn main() {
                 println!("{major}.{minor}.{bugfix} ({release_tag})");
             }
         }
-        Commands::Download { version } => {
-            download_python(&version).unwrap_or_else(|err| println!("{}", err))
-        }
+        Commands::Download {
+            version: Some(version),
+        } => download_python(&version).unwrap_or_else(|err| println!("{}", err)),
         Commands::Virtualenv { version, project } => {
             create_virtualenv(&version, &project).unwrap_or_else(|err| println!("{}", err))
         }
