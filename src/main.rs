@@ -42,6 +42,23 @@ impl From<std::io::Error> for Error {
     }
 }
 
+fn parse_version(python: &Python) -> nom::IResult<&str, (String, u8, u8, u8)> {
+    use nom::bytes::complete::tag;
+    use nom::character::complete::u8;
+    let (input, _) = tag("cpython-")(python.name.as_str())?;
+    let (input, (major, _, minor, _, bugfix, _, release_tag)) = nom::sequence::tuple((
+        u8,
+        tag("."),
+        u8,
+        tag("."),
+        u8,
+        tag("+"),
+        nom::character::complete::digit1,
+    ))(input)?;
+
+    Ok((input, (release_tag.to_string(), major, minor, bugfix)))
+}
+
 async fn releases(target: &str) -> Vec<Python> {
     let octocrab = octocrab::instance();
     octocrab
@@ -193,9 +210,11 @@ fn main() {
         .unwrap();
     match cli.cmd {
         Commands::List => {
-            let releases = rt.block_on(releases("x86_64-unknown-linux-gnu"));
+            let mut releases = rt.block_on(releases("x86_64-unknown-linux-gnu"));
+            releases.sort_unstable_by_key(|p| parse_version(p).unwrap().1);
             for python in releases {
-                println!("{}", python.name);
+                let (_, (release_tag, major, minor, bugfix)) = parse_version(&python).unwrap();
+                println!("{major}.{minor}.{bugfix} ({release_tag})");
             }
         }
         Commands::Download { version } => {
