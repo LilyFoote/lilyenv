@@ -72,16 +72,19 @@ async fn releases(target: &str) -> Vec<Python> {
 
 fn download_python(python: Python, version: &str) -> Result<(), Error> {
     let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
+    let python_dir = lilyenv.data_local_dir().join("pythons").join(version);
+    if python_dir.exists() {
+        return Ok(());
+    }
+
     let downloads = lilyenv.cache_dir().join("downloads");
     std::fs::create_dir_all(&downloads)?;
     let path = downloads.join(python.name);
 
     if !path.exists() {
-        download_file(python.url, &path)?
+        download_file(python.url, &path)?;
     }
-
-    let pythons = lilyenv.data_local_dir().join("pythons").join(version);
-    extract_tar_gz(&path, &pythons)?;
+    extract_tar_gz(&path, &python_dir)?;
     Ok(())
 }
 
