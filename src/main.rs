@@ -45,11 +45,21 @@ async fn releases(target: &str) -> Vec<Python> {
     octocrab
         .repos("indygreg", "python-build-standalone")
         .releases()
-        .get_latest()
+        .list()
+        .send()
         .await
         .unwrap()
-        .assets
+        .items
         .into_iter()
+        .filter(|release| {
+            release.created_at
+                > Some(
+                    chrono::DateTime::parse_from_rfc3339("2022-02-26T00:00:00Z")
+                        .unwrap()
+                        .into(),
+                )
+        })
+        .flat_map(|release| release.assets)
         .map(|asset| Python {
             name: asset.name,
             url: asset.browser_download_url,
