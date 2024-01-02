@@ -150,6 +150,9 @@ fn activate_virtualenv(version: &str, project: &str) -> Result<(), Error> {
         .join("virtualenvs")
         .join(project)
         .join(version);
+    if !virtualenv.exists() {
+        create_virtualenv(version, project)?
+    }
     let path = std::env::var("PATH").unwrap();
     let path = format!("{}:{}", virtualenv.join("bin").display(), path);
 
