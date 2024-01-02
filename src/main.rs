@@ -195,9 +195,12 @@ struct Cli {
 
 #[derive(Subcommand, Debug, Clone)]
 enum Commands {
-    Download { version: Option<String> },
-    Virtualenv { version: String, project: String },
+    /// Activate a virtualenv given a Python version and a Project string
     Activate { version: String, project: String },
+    /// Create a virtualenv given a Python version and a Project string
+    Virtualenv { version: String, project: String },
+    /// Download a specific Python version or list all Python versions available to download
+    Download { version: Option<String> },
 }
 
 fn main() {
