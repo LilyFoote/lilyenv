@@ -196,7 +196,11 @@ fn main() {
                 }
             };
         }
-        Commands::Virtualenv { version, project } => create_virtualenv(&version, &project).unwrap(),
-        Commands::Activate { version, project } => activate_virtualenv(&version, &project).unwrap(),
+        Commands::Virtualenv { version, project } => {
+            create_virtualenv(&version, &project).unwrap_or_else(|err| println!("{}", err))
+        }
+        Commands::Activate { version, project } => {
+            activate_virtualenv(&version, &project).unwrap_or_else(|err| println!("{}", err))
+        }
     }
 }
