@@ -15,6 +15,7 @@ struct Python {
 enum Error {
     Request(reqwest::Error),
     Fs(std::io::Error),
+    VersionNotFound(String),
 }
 
 impl std::fmt::Display for Error {
@@ -22,6 +23,7 @@ impl std::fmt::Display for Error {
         match self {
             Self::Request(err) => write!(f, "{}", err),
             Self::Fs(err) => write!(f, "{}", err),
+            Self::VersionNotFound(version) => write!(f, "Could not find {} to download.", version),
         }
     }
 }
@@ -70,7 +72,7 @@ async fn releases(target: &str) -> Vec<Python> {
         .collect()
 }
 
-fn download_python(python: Python, version: &str) -> Result<(), Error> {
+fn download_python(version: &str) -> Result<(), Error> {
     let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
     let python_dir = lilyenv.data_local_dir().join("pythons").join(version);
     if python_dir.exists() {
@@ -79,8 +81,22 @@ fn download_python(python: Python, version: &str) -> Result<(), Error> {
 
     let downloads = lilyenv.cache_dir().join("downloads");
     std::fs::create_dir_all(&downloads)?;
-    let path = downloads.join(python.name);
 
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let python = match rt
+        .block_on(releases("x86_64-unknown-linux-gnu"))
+        .into_iter()
+        .find(|python| python.name.contains(version))
+    {
+        Some(python) => python,
+        None => {
+            return Err(Error::VersionNotFound(version.to_string()));
+        }
+    };
+    let path = downloads.join(python.name);
     if !path.exists() {
         download_file(python.url, &path)?;
     }
@@ -181,23 +197,7 @@ fn main() {
             }
         }
         Commands::Download { version } => {
-            let python = match rt
-                .block_on(releases("x86_64-unknown-linux-gnu"))
-                .into_iter()
-                .find(|python| python.name.contains(&version))
-            {
-                Some(python) => python,
-                None => {
-                    println!("Could not find {} to download.", version);
-                    return;
-                }
-            };
-            match download_python(python, &version) {
-                Ok(_) => {}
-                Err(_) => {
-                    println!("Failed to download {}.", version);
-                }
-            };
+            download_python(&version).unwrap_or_else(|err| println!("{}", err))
         }
         Commands::Virtualenv { version, project } => {
             create_virtualenv(&version, &project).unwrap_or_else(|err| println!("{}", err))
