@@ -127,8 +127,7 @@ fn create_virtualenv(version: &str, project: &str) -> Result<(), Error> {
     let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
     let python = lilyenv.data_local_dir().join("pythons").join(version);
     if !python.exists() {
-        println!("{:?}", python);
-        todo!() // download this python
+        download_python(version)?;
     }
     let python_executable = python.join("python/bin/python3");
     let virtualenv = lilyenv
