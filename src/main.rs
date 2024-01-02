@@ -97,7 +97,6 @@ fn download_file(url: Url, target: &Path) -> Result<(), Error> {
 }
 
 fn extract_tar_gz(source: &Path, target: &Path) -> Result<(), std::io::Error> {
-    std::fs::create_dir_all(target)?;
     let tar_gz = File::open(source)?;
     let tar = GzDecoder::new(tar_gz);
     let mut archive = Archive::new(tar);
