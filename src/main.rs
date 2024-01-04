@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use current_platform::CURRENT_PLATFORM;
 use flate2::read::GzDecoder;
 use std::fs::File;
 use std::path::Path;
@@ -59,7 +60,7 @@ fn parse_version(python: &Python) -> nom::IResult<&str, (String, u8, u8, u8)> {
     Ok((input, (release_tag.to_string(), major, minor, bugfix)))
 }
 
-async fn releases(target: &str) -> Vec<Python> {
+async fn releases() -> Vec<Python> {
     let octocrab = octocrab::instance();
     octocrab
         .repos("indygreg", "python-build-standalone")
@@ -83,7 +84,7 @@ async fn releases(target: &str) -> Vec<Python> {
             name: asset.name,
             url: asset.browser_download_url,
         })
-        .filter(|python| python.name.contains(target))
+        .filter(|python| python.name.contains(CURRENT_PLATFORM))
         .filter(|python| python.name.contains("install_only"))
         .filter(|python| !python.name.ends_with(".sha256"))
         .collect()
@@ -104,7 +105,7 @@ fn download_python(version: &str) -> Result<(), Error> {
         .build()
         .unwrap();
     let python = match rt
-        .block_on(releases("x86_64-unknown-linux-gnu"))
+        .block_on(releases())
         .into_iter()
         .find(|python| python.name.contains(version))
     {
@@ -212,7 +213,7 @@ fn main() {
         .unwrap();
     match cli.cmd {
         Commands::Download { version: None } => {
-            let mut releases = rt.block_on(releases("x86_64-unknown-linux-gnu"));
+            let mut releases = rt.block_on(releases());
             releases.sort_unstable_by_key(|p| parse_version(p).unwrap().1);
             for python in releases {
                 let (_, (release_tag, major, minor, bugfix)) = parse_version(&python).unwrap();
