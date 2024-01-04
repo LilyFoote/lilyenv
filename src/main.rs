@@ -206,13 +206,12 @@ enum Commands {
     ShellConfig,
 }
 
-fn main() {
+fn main() -> Result<(), Error> {
     let cli = Cli::parse();
 
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
-        .build()
-        .unwrap();
+        .build()?;
     match cli.cmd {
         Commands::Download { version: None } => {
             let mut releases = rt.block_on(releases());
@@ -224,15 +223,18 @@ fn main() {
         }
         Commands::Download {
             version: Some(version),
-        } => download_python(&version).unwrap_or_else(|err| println!("{}", err)),
+        } => {
+            download_python(&version)?;
+        }
         Commands::Virtualenv { version, project } => {
-            create_virtualenv(&version, &project).unwrap_or_else(|err| println!("{}", err))
+            create_virtualenv(&version, &project)?;
         }
         Commands::Activate { version, project } => {
-            activate_virtualenv(&version, &project).unwrap_or_else(|err| println!("{}", err))
+            activate_virtualenv(&version, &project)?;
         }
         Commands::ShellConfig => {
             println!(include_str!("bash_config"));
         }
     }
+    Ok(())
 }
