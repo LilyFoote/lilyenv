@@ -206,7 +206,7 @@ enum Commands {
     ShellConfig,
 }
 
-fn main() -> Result<(), Error> {
+fn run() -> Result<(), Error> {
     let cli = Cli::parse();
 
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -237,4 +237,10 @@ fn main() -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("{e}");
+    }
 }
