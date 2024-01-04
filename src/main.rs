@@ -172,11 +172,11 @@ fn activate_virtualenv(version: &str, project: &str) -> Result<(), Error> {
         create_virtualenv(version, project)?
     }
     let path = std::env::var("PATH").unwrap();
-    let path = format!("{}:{}", virtualenv.join("bin").display(), path);
+    let path = format!("{}:{path}", virtualenv.join("bin").display());
 
     let mut bash = std::process::Command::new("bash")
         .env("VIRTUAL_ENV", &virtualenv)
-        .env("VIRTUAL_ENV_PROMPT", format!("{} ({}) ", project, version))
+        .env("VIRTUAL_ENV_PROMPT", format!("{project} ({version}) "))
         .env("PATH", path)
         .env(
             "TERMINFO_DIRS",
