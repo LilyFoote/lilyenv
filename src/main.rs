@@ -202,6 +202,8 @@ enum Commands {
     Virtualenv { version: String, project: String },
     /// Download a specific Python version or list all Python versions available to download
     Download { version: Option<String> },
+    /// Show information to include in a shell config file
+    ShellConfig,
 }
 
 fn main() {
@@ -228,6 +230,9 @@ fn main() {
         }
         Commands::Activate { version, project } => {
             activate_virtualenv(&version, &project).unwrap_or_else(|err| println!("{}", err))
+        }
+        Commands::ShellConfig => {
+            println!(include_str!("bash_config"));
         }
     }
 }
