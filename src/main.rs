@@ -10,6 +10,8 @@ use url::Url;
 struct Python {
     name: String,
     url: Url,
+    version: Version,
+    release_tag: String,
 }
 
 #[derive(Debug)]
@@ -17,14 +19,16 @@ enum Error {
     Request(reqwest::Error),
     Fs(std::io::Error),
     VersionNotFound(String),
+    InvalidVersion(String),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Request(err) => write!(f, "{}", err),
-            Self::Fs(err) => write!(f, "{}", err),
-            Self::VersionNotFound(version) => write!(f, "Could not find {} to download.", version),
+            Self::Request(err) => write!(f, "{err}"),
+            Self::Fs(err) => write!(f, "{err}"),
+            Self::VersionNotFound(version) => write!(f, "Could not find {version} to download."),
+            Self::InvalidVersion(version) => write!(f, "{version} is not a valid Python version"),
         }
     }
 }
@@ -43,10 +47,10 @@ impl From<std::io::Error> for Error {
     }
 }
 
-fn parse_version(python: &Python) -> nom::IResult<&str, (String, u8, u8, u8)> {
+fn parse_version(filename: &str) -> nom::IResult<&str, (String, Version)> {
     use nom::bytes::complete::tag;
     use nom::character::complete::u8;
-    let (input, _) = tag("cpython-")(python.name.as_str())?;
+    let (input, _) = tag("cpython-")(filename)?;
     let (input, (major, _, minor, _, bugfix, _, release_tag)) = nom::sequence::tuple((
         u8,
         tag("."),
@@ -57,7 +61,62 @@ fn parse_version(python: &Python) -> nom::IResult<&str, (String, u8, u8, u8)> {
         nom::character::complete::digit1,
     ))(input)?;
 
-    Ok((input, (release_tag.to_string(), major, minor, bugfix)))
+    let version = Version {
+        major,
+        minor,
+        bugfix: Some(bugfix),
+    };
+    Ok((input, (release_tag.to_string(), version)))
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+struct Version {
+    major: u8,
+    minor: u8,
+    bugfix: Option<u8>,
+}
+
+impl Version {
+    fn compatible(&self, other: &Self) -> bool {
+        if self == other {
+            true
+        } else {
+            self.major == other.major && self.minor == other.minor && other.bugfix.is_none()
+        }
+    }
+}
+
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.bugfix {
+            Some(bugfix) => write!(f, "{}.{}.{}", self.major, self.minor, bugfix),
+            None => write!(f, "{}.{}", self.major, self.minor),
+        }
+    }
+}
+
+fn _validate_version(version: &str) -> nom::IResult<&str, Version> {
+    use nom::bytes::complete::tag;
+    use nom::character::complete::u8;
+    use nom::sequence::separated_pair;
+    let (rest, (major, minor)) = separated_pair(u8, tag("."), u8)(version)?;
+    let (rest, bugfix) = nom::combinator::opt(nom::sequence::preceded(tag("."), u8))(rest)?;
+    nom::combinator::eof(rest)?;
+    Ok((
+        rest,
+        Version {
+            major,
+            minor,
+            bugfix,
+        },
+    ))
+}
+
+fn validate_version(version: &str) -> Result<Version, Error> {
+    match _validate_version(version) {
+        Ok((_, version)) => Ok(version),
+        Err(_) => Err(Error::InvalidVersion(version.into())),
+    }
 }
 
 async fn releases() -> Vec<Python> {
@@ -80,19 +139,27 @@ async fn releases() -> Vec<Python> {
                 )
         })
         .flat_map(|release| release.assets)
-        .map(|asset| Python {
-            name: asset.name,
-            url: asset.browser_download_url,
+        .filter(|asset| !asset.name.ends_with(".sha256"))
+        .filter(|asset| asset.name.contains(CURRENT_PLATFORM))
+        .filter(|asset| asset.name.contains("install_only"))
+        .map(|asset| {
+            let (_, (release_tag, version)) = parse_version(&asset.name).unwrap();
+            Python {
+                name: asset.name,
+                url: asset.browser_download_url,
+                version,
+                release_tag,
+            }
         })
-        .filter(|python| python.name.contains(CURRENT_PLATFORM))
-        .filter(|python| python.name.contains("install_only"))
-        .filter(|python| !python.name.ends_with(".sha256"))
         .collect()
 }
 
-fn download_python(version: &str) -> Result<(), Error> {
+fn download_python(version: &Version) -> Result<(), Error> {
     let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
-    let python_dir = lilyenv.data_local_dir().join("pythons").join(version);
+    let python_dir = lilyenv
+        .data_local_dir()
+        .join("pythons")
+        .join(version.to_string());
     if python_dir.exists() {
         return Ok(());
     }
@@ -107,7 +174,7 @@ fn download_python(version: &str) -> Result<(), Error> {
     let python = match rt
         .block_on(releases())
         .into_iter()
-        .find(|python| python.name.contains(version))
+        .find(|python| python.version.compatible(version))
     {
         Some(python) => python,
         None => {
@@ -141,9 +208,12 @@ fn extract_tar_gz(source: &Path, target: &Path) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-fn create_virtualenv(version: &str, project: &str) -> Result<(), Error> {
+fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
-    let python = lilyenv.data_local_dir().join("pythons").join(version);
+    let python = lilyenv
+        .data_local_dir()
+        .join("pythons")
+        .join(version.to_string());
     if !python.exists() {
         download_python(version)?;
     }
@@ -152,7 +222,7 @@ fn create_virtualenv(version: &str, project: &str) -> Result<(), Error> {
         .data_local_dir()
         .join("virtualenvs")
         .join(project)
-        .join(version);
+        .join(version.to_string());
     std::process::Command::new(python_executable)
         .arg("-m")
         .arg("venv")
@@ -161,13 +231,13 @@ fn create_virtualenv(version: &str, project: &str) -> Result<(), Error> {
     Ok(())
 }
 
-fn activate_virtualenv(version: &str, project: &str) -> Result<(), Error> {
+fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
     let virtualenv = lilyenv
         .data_local_dir()
         .join("virtualenvs")
         .join(project)
-        .join(version);
+        .join(version.to_string());
     if !virtualenv.exists() {
         create_virtualenv(version, project)?
     }
@@ -215,21 +285,23 @@ fn run() -> Result<(), Error> {
     match cli.cmd {
         Commands::Download { version: None } => {
             let mut releases = rt.block_on(releases());
-            releases.sort_unstable_by_key(|p| parse_version(p).unwrap().1);
+            releases.sort_unstable_by_key(|p| p.version);
             for python in releases {
-                let (_, (release_tag, major, minor, bugfix)) = parse_version(&python).unwrap();
-                println!("{major}.{minor}.{bugfix} ({release_tag})");
+                println!("{} ({})", python.version, python.release_tag);
             }
         }
         Commands::Download {
             version: Some(version),
         } => {
+            let version = validate_version(&version)?;
             download_python(&version)?;
         }
         Commands::Virtualenv { version, project } => {
+            let version = validate_version(&version)?;
             create_virtualenv(&version, &project)?;
         }
         Commands::Activate { version, project } => {
+            let version = validate_version(&version)?;
             activate_virtualenv(&version, &project)?;
         }
         Commands::ShellConfig => {
