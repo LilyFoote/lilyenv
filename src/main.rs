@@ -371,6 +371,14 @@ fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     Ok(())
 }
 
+fn list_versions(path: std::path::PathBuf) -> Result<Vec<String>, Error> {
+    Ok(std::fs::read_dir(path)?
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .map(|version| version.file_name().to_str().unwrap().to_string())
+        .collect::<Vec<_>>())
+}
+
 #[derive(Parser)]
 #[command(author, version, about, long_about=None)]
 struct Cli {
@@ -382,6 +390,8 @@ struct Cli {
 enum Commands {
     /// Activate a virtualenv given a Python version and a Project string
     Activate { version: String, project: String },
+    /// List all available virtualenvs, or those for the given Project
+    List { project: Option<String> },
     /// Create a virtualenv given a Python version and a Project string
     Virtualenv { version: String, project: String },
     /// Download a specific Python version or list all Python versions available to download
@@ -420,6 +430,28 @@ fn run() -> Result<(), Error> {
         }
         Commands::ShellConfig => {
             println!(include_str!("bash_config"));
+        }
+        Commands::List { project } => {
+            let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
+            let projects = lilyenv.data_local_dir().join("virtualenvs");
+            match project {
+                Some(project) => {
+                    let virtualenvs = projects.join(project);
+                    let versions = list_versions(virtualenvs)?;
+                    println!("{}", versions.join(" "));
+                }
+                None => {
+                    for project in std::fs::read_dir(projects)? {
+                        let project = project?;
+                        let versions = list_versions(project.path())?;
+                        println!(
+                            "{}: {}",
+                            project.file_name().to_str().unwrap(),
+                            versions.join(" ")
+                        );
+                    }
+                }
+            }
         }
     }
     Ok(())
