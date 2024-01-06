@@ -216,7 +216,7 @@ fn pypy_releases() -> Vec<Python> {
                 name,
                 url: Url::parse(url).unwrap(),
                 version,
-                release_tag: release_tag,
+                release_tag,
             }
         })
         .collect()
