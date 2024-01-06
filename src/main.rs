@@ -1,3 +1,4 @@
+use bzip2::read::BzDecoder;
 use clap::{Parser, Subcommand};
 use current_platform::CURRENT_PLATFORM;
 use flate2::read::GzDecoder;
@@ -5,6 +6,8 @@ use std::fs::File;
 use std::path::Path;
 use tar::Archive;
 use url::Url;
+
+const PYPY_DOWNLOAD_URL: &str = "https://downloads.python.org/pypy/";
 
 #[derive(Debug)]
 struct Python {
@@ -62,6 +65,7 @@ fn parse_version(filename: &str) -> nom::IResult<&str, (String, Version)> {
     ))(input)?;
 
     let version = Version {
+        interpreter: Interpreter::CPython,
         major,
         minor,
         bugfix: Some(bugfix),
@@ -69,8 +73,35 @@ fn parse_version(filename: &str) -> nom::IResult<&str, (String, Version)> {
     Ok((input, (release_tag.to_string(), version)))
 }
 
+fn parse_pypy_version(url: &str) -> nom::IResult<&str, (String, String, Version)> {
+    use nom::bytes::complete::{tag, take_until};
+    use nom::character::complete::u8;
+    let (filename, _) = tag(PYPY_DOWNLOAD_URL)(url)?;
+    let (rest, (_, major, _, minor, _, release_tag)) =
+        nom::sequence::tuple((tag("pypy"), u8, tag("."), u8, tag("-"), take_until("-")))(filename)?;
+
+    let version = Version {
+        interpreter: Interpreter::PyPy,
+        major,
+        minor,
+        bugfix: None,
+    };
+
+    Ok((
+        rest,
+        (filename.to_string(), release_tag.to_string(), version),
+    ))
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+enum Interpreter {
+    CPython,
+    PyPy,
+}
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 struct Version {
+    interpreter: Interpreter,
     major: u8,
     minor: u8,
     bugfix: Option<u8>,
@@ -81,16 +112,23 @@ impl Version {
         if self == other {
             true
         } else {
-            self.major == other.major && self.minor == other.minor && other.bugfix.is_none()
+            self.interpreter == other.interpreter
+                && self.major == other.major
+                && self.minor == other.minor
+                && other.bugfix.is_none()
         }
     }
 }
 
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let prefix = match self.interpreter {
+            Interpreter::CPython => "",
+            Interpreter::PyPy => "pypy",
+        };
         match self.bugfix {
-            Some(bugfix) => write!(f, "{}.{}.{}", self.major, self.minor, bugfix),
-            None => write!(f, "{}.{}", self.major, self.minor),
+            Some(bugfix) => write!(f, "{}{}.{}.{}", prefix, self.major, self.minor, bugfix),
+            None => write!(f, "{}{}.{}", prefix, self.major, self.minor),
         }
     }
 }
@@ -99,12 +137,18 @@ fn _validate_version(version: &str) -> nom::IResult<&str, Version> {
     use nom::bytes::complete::tag;
     use nom::character::complete::u8;
     use nom::sequence::separated_pair;
-    let (rest, (major, minor)) = separated_pair(u8, tag("."), u8)(version)?;
+    let (rest, interpreter) = nom::combinator::opt(tag("pypy"))(version)?;
+    let (rest, (major, minor)) = separated_pair(u8, tag("."), u8)(rest)?;
     let (rest, bugfix) = nom::combinator::opt(nom::sequence::preceded(tag("."), u8))(rest)?;
     nom::combinator::eof(rest)?;
+    let interpreter = match interpreter {
+        Some(_) => Interpreter::PyPy,
+        None => Interpreter::CPython,
+    };
     Ok((
         rest,
         Version {
+            interpreter,
             major,
             minor,
             bugfix,
@@ -154,7 +198,38 @@ async fn releases() -> Vec<Python> {
         .collect()
 }
 
+fn pypy_releases() -> Vec<Python> {
+    let html = reqwest::blocking::get("https://www.pypy.org/download.html")
+        .unwrap()
+        .text()
+        .unwrap();
+    let document = scraper::Html::parse_document(&html);
+    let selector = scraper::Selector::parse("table>tbody>tr>td>p>a").unwrap();
+    document
+        .select(&selector)
+        .map(|link| link.value().attr("href").unwrap())
+        .filter(|link| link.starts_with(PYPY_DOWNLOAD_URL))
+        .filter(|link| link.contains("linux64"))
+        .map(|url| {
+            let (_, (name, release_tag, version)) = parse_pypy_version(url).unwrap();
+            Python {
+                name,
+                url: Url::parse(url).unwrap(),
+                version,
+                release_tag: release_tag,
+            }
+        })
+        .collect()
+}
+
 fn download_python(version: &Version) -> Result<(), Error> {
+    match version.interpreter {
+        Interpreter::CPython => download_cpython(version),
+        Interpreter::PyPy => download_pypy(version),
+    }
+}
+
+fn download_cpython(version: &Version) -> Result<(), Error> {
     let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
     let python_dir = lilyenv
         .data_local_dir()
@@ -189,6 +264,36 @@ fn download_python(version: &Version) -> Result<(), Error> {
     Ok(())
 }
 
+fn download_pypy(version: &Version) -> Result<(), Error> {
+    let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
+    let python_dir = lilyenv
+        .data_local_dir()
+        .join("pythons")
+        .join(version.to_string());
+    if python_dir.exists() {
+        return Ok(());
+    }
+
+    let downloads = lilyenv.cache_dir().join("downloads");
+    std::fs::create_dir_all(&downloads)?;
+
+    let python = match pypy_releases()
+        .into_iter()
+        .find(|python| python.version.compatible(version))
+    {
+        Some(python) => python,
+        None => {
+            return Err(Error::VersionNotFound(version.to_string()));
+        }
+    };
+    let path = downloads.join(python.name);
+    if !path.exists() {
+        download_file(python.url, &path)?;
+    }
+    extract_tar_bz2(&path, &python_dir)?;
+    Ok(())
+}
+
 fn download_file(url: Url, target: &Path) -> Result<(), Error> {
     let client = reqwest::blocking::Client::builder()
         .user_agent("lilyenv")
@@ -208,6 +313,14 @@ fn extract_tar_gz(source: &Path, target: &Path) -> Result<(), std::io::Error> {
     Ok(())
 }
 
+fn extract_tar_bz2(source: &Path, target: &Path) -> Result<(), std::io::Error> {
+    let tar_gz = File::open(source)?;
+    let tar = BzDecoder::new(tar_gz);
+    let mut archive = Archive::new(tar);
+    archive.unpack(target)?;
+    Ok(())
+}
+
 fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
     let python = lilyenv
@@ -217,7 +330,8 @@ fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     if !python.exists() {
         download_python(version)?;
     }
-    let python_executable = python.join("python/bin/python3");
+    let next = std::fs::read_dir(python)?.next().unwrap()?.path();
+    let python_executable = next.join("bin/python3");
     let virtualenv = lilyenv
         .data_local_dir()
         .join("virtualenvs")
