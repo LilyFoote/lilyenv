@@ -222,20 +222,20 @@ fn pypy_releases() -> Vec<Python> {
         .collect()
 }
 
-fn download_python(version: &Version) -> Result<(), Error> {
+fn download_python(version: &Version, upgrade: bool) -> Result<(), Error> {
     match version.interpreter {
-        Interpreter::CPython => download_cpython(version),
-        Interpreter::PyPy => download_pypy(version),
+        Interpreter::CPython => download_cpython(version, upgrade),
+        Interpreter::PyPy => download_pypy(version, upgrade),
     }
 }
 
-fn download_cpython(version: &Version) -> Result<(), Error> {
+fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
     let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
     let python_dir = lilyenv
         .data_local_dir()
         .join("pythons")
         .join(version.to_string());
-    if python_dir.exists() {
+    if !upgrade && python_dir.exists() {
         return Ok(());
     }
 
@@ -257,20 +257,20 @@ fn download_cpython(version: &Version) -> Result<(), Error> {
         }
     };
     let path = downloads.join(python.name);
-    if !path.exists() {
+    if upgrade || !path.exists() {
         download_file(python.url, &path)?;
     }
     extract_tar_gz(&path, &python_dir)?;
     Ok(())
 }
 
-fn download_pypy(version: &Version) -> Result<(), Error> {
+fn download_pypy(version: &Version, upgrade: bool) -> Result<(), Error> {
     let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
     let python_dir = lilyenv
         .data_local_dir()
         .join("pythons")
         .join(version.to_string());
-    if python_dir.exists() {
+    if !upgrade && python_dir.exists() {
         return Ok(());
     }
 
@@ -287,7 +287,7 @@ fn download_pypy(version: &Version) -> Result<(), Error> {
         }
     };
     let path = downloads.join(python.name);
-    if !path.exists() {
+    if upgrade || !path.exists() {
         download_file(python.url, &path)?;
     }
     extract_tar_bz2(&path, &python_dir)?;
@@ -328,7 +328,7 @@ fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
         .join("pythons")
         .join(version.to_string());
     if !python.exists() {
-        download_python(version)?;
+        download_python(version, false)?;
     }
     let next = std::fs::read_dir(python)?.next().unwrap()?.path();
     let python_executable = next.join("bin/python3");
@@ -392,6 +392,8 @@ enum Commands {
     Activate { version: String, project: String },
     /// List all available virtualenvs, or those for the given Project
     List { project: Option<String> },
+    /// Upgrade a Python version to the latest bugfix release
+    Upgrade { version: String },
     /// Create a virtualenv given a Python version and a Project string
     Virtualenv { version: String, project: String },
     /// Download a specific Python version or list all Python versions available to download
@@ -418,7 +420,7 @@ fn run() -> Result<(), Error> {
             version: Some(version),
         } => {
             let version = validate_version(&version)?;
-            download_python(&version)?;
+            download_python(&version, false)?;
         }
         Commands::Virtualenv { version, project } => {
             let version = validate_version(&version)?;
@@ -451,6 +453,13 @@ fn run() -> Result<(), Error> {
                         );
                     }
                 }
+            }
+        }
+        Commands::Upgrade { version } => {
+            let version = validate_version(&version)?;
+            match version.bugfix {
+                Some(_) => eprintln!("Only x.y Python versions can be upgraded, not x.y.z"),
+                None => download_python(&version, true)?,
             }
         }
     }
