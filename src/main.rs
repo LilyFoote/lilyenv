@@ -216,14 +216,11 @@ async fn releases() -> Result<Vec<Python>, Error> {
         .collect()
 }
 
-fn pypy_releases() -> Vec<Python> {
-    let html = reqwest::blocking::get("https://www.pypy.org/download.html")
-        .unwrap()
-        .text()
-        .unwrap();
+fn pypy_releases() -> Result<Vec<Python>, Error> {
+    let html = reqwest::blocking::get("https://www.pypy.org/download.html")?.text()?;
     let document = scraper::Html::parse_document(&html);
     let selector = scraper::Selector::parse("table>tbody>tr>td>p>a").unwrap();
-    document
+    Ok(document
         .select(&selector)
         .map(|link| link.value().attr("href").unwrap())
         .filter(|link| link.starts_with(PYPY_DOWNLOAD_URL))
@@ -237,7 +234,7 @@ fn pypy_releases() -> Vec<Python> {
                 release_tag,
             }
         })
-        .collect()
+        .collect())
 }
 
 fn download_python(version: &Version, upgrade: bool) -> Result<(), Error> {
@@ -302,7 +299,7 @@ fn download_pypy(version: &Version, upgrade: bool) -> Result<(), Error> {
     let downloads = downloads_dir();
     std::fs::create_dir_all(&downloads)?;
 
-    let python = match pypy_releases()
+    let python = match pypy_releases()?
         .into_iter()
         .find(|python| python.version.compatible(version))
     {
