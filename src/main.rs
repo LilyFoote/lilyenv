@@ -229,7 +229,11 @@ fn pypy_releases() -> Result<Vec<Python>, Error> {
     };
     Ok(document
         .select(&selector)
-        .map(|link| link.value().attr("href").unwrap())
+        .map(|link| {
+            link.value()
+                .attr("href")
+                .expect("A pypy download <a> tag has a href attribute.")
+        })
         .filter(|link| link.starts_with(PYPY_DOWNLOAD_URL))
         .filter(|link| link.contains("linux64"))
         .map(|url| {
