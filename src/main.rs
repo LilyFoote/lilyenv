@@ -389,7 +389,13 @@ fn list_versions(path: std::path::PathBuf) -> Result<Vec<String>, Error> {
     Ok(std::fs::read_dir(path)?
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
-        .map(|version| version.file_name().to_str().unwrap().to_string())
+        .map(|version| {
+            version
+                .file_name()
+                .to_str()
+                .expect("Could not convert a version to utf-8.")
+                .to_string()
+        })
         .collect::<Vec<_>>())
 }
 
@@ -408,7 +414,10 @@ fn print_all_versions() -> Result<(), Error> {
         let versions = list_versions(project.path())?;
         println!(
             "{}: {}",
-            project.file_name().to_str().unwrap(),
+            project
+                .file_name()
+                .to_str()
+                .expect("Could not convert a project directory name to utf-8"),
             versions.join(" ")
         );
     }
