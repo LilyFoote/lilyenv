@@ -414,7 +414,12 @@ fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     let path = std::env::var("PATH").expect("Could not read PATH environment variable.");
     let path = format!("{}:{path}", virtualenv.join("bin").display());
 
-    let mut bash = std::process::Command::new("bash")
+    let mut bash = std::process::Command::new("bash");
+    let bash = match project_directory(project)? {
+        Some(directory) => bash.current_dir(directory),
+        _ => &mut bash,
+    };
+    let mut bash = bash
         .env("VIRTUAL_ENV", &virtualenv)
         .env("VIRTUAL_ENV_PROMPT", format!("{project} ({version}) "))
         .env("PATH", path)
@@ -478,6 +483,23 @@ fn print_all_versions() -> Result<(), Error> {
     Ok(())
 }
 
+fn set_project_directory(project: &str, default_directory: &str) -> Result<(), Error> {
+    let file = virtualenvs_dir().join(project).join("directory");
+    std::fs::write(file, default_directory)?;
+    Ok(())
+}
+
+fn project_directory(project: &str) -> Result<Option<String>, Error> {
+    let file = virtualenvs_dir().join(project).join("directory");
+    match std::fs::read_to_string(file) {
+        Ok(default_directory) => Ok(Some(default_directory)),
+        Err(err) => match err.kind() {
+            std::io::ErrorKind::NotFound => Ok(None),
+            _ => Err(err)?,
+        },
+    }
+}
+
 #[derive(Parser)]
 #[command(author, version, about, long_about=None)]
 struct Cli {
@@ -493,6 +515,11 @@ enum Commands {
     List { project: Option<String> },
     /// Upgrade a Python version to the latest bugfix release
     Upgrade { version: String },
+    /// Set the default directory for a project
+    SetProjectDirectory {
+        project: String,
+        default_directory: Option<String>,
+    },
     /// Create a virtualenv given a Project string and a Python version
     Virtualenv { project: String, version: String },
     /// Download a specific Python version or list all Python versions available to download
@@ -533,6 +560,19 @@ fn run() -> Result<(), Error> {
                 Some(_) => eprintln!("Only x.y Python versions can be upgraded, not x.y.z"),
                 None => download_python(&version, true)?,
             }
+        }
+        Commands::SetProjectDirectory {
+            project,
+            default_directory,
+        } => {
+            let default_directory = match default_directory {
+                Some(default_directory) => default_directory,
+                None => std::env::current_dir()?
+                    .to_str()
+                    .expect("The current directory should be valid unicode.")
+                    .to_string(),
+            };
+            set_project_directory(&project, &default_directory)?;
         }
     }
     Ok(())
