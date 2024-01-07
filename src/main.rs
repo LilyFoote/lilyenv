@@ -256,8 +256,7 @@ fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
 
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
-        .build()
-        .unwrap();
+        .build()?;
     let python = match rt
         .block_on(releases())
         .into_iter()
