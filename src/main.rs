@@ -22,6 +22,7 @@ enum Error {
     Request(reqwest::Error),
     Octocrab(octocrab::Error),
     Scraper(String),
+    Url(url::ParseError),
     Fs(std::io::Error),
     VersionNotFound(String),
     InvalidVersion(String),
@@ -34,6 +35,7 @@ impl std::fmt::Display for Error {
             Self::Request(err) => write!(f, "{err}"),
             Self::Octocrab(err) => write!(f, "{err}"),
             Self::Fs(err) => write!(f, "{err}"),
+            Self::Url(err) => write!(f, "{err}"),
             Self::VersionNotFound(version) => write!(f, "Could not find {version} to download."),
             Self::InvalidVersion(version) => write!(f, "{version} is not a valid Python version"),
             Self::ParseAsset(asset) => {
@@ -61,6 +63,12 @@ impl From<std::io::Error> for Error {
 impl From<octocrab::Error> for Error {
     fn from(err: octocrab::Error) -> Self {
         Self::Octocrab(err)
+    }
+}
+
+impl From<url::ParseError> for Error {
+    fn from(err: url::ParseError) -> Self {
+        Self::Url(err)
     }
 }
 
@@ -227,7 +235,7 @@ fn pypy_releases() -> Result<Vec<Python>, Error> {
             "Could not find table of pypy downloads.".to_string(),
         ))?,
     };
-    Ok(document
+    document
         .select(&selector)
         .map(|link| {
             link.value()
@@ -238,14 +246,14 @@ fn pypy_releases() -> Result<Vec<Python>, Error> {
         .filter(|link| link.contains("linux64"))
         .map(|url| {
             let (_, (name, release_tag, version)) = parse_pypy_version(url).unwrap();
-            Python {
+            Ok(Python {
                 name,
-                url: Url::parse(url).unwrap(),
+                url: Url::parse(url)?,
                 version,
                 release_tag,
-            }
+            })
         })
-        .collect())
+        .collect()
 }
 
 fn download_python(version: &Version, upgrade: bool) -> Result<(), Error> {
