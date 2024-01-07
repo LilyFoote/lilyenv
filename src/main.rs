@@ -102,7 +102,7 @@ fn parse_version(filename: &str) -> Result<(String, Version), Error> {
     }
 }
 
-fn parse_pypy_version(url: &str) -> nom::IResult<&str, (String, String, Version)> {
+fn _parse_pypy_version(url: &str) -> nom::IResult<&str, (String, String, Version)> {
     use nom::bytes::complete::{tag, take_until};
     use nom::character::complete::u8;
     let (filename, _) = tag(PYPY_DOWNLOAD_URL)(url)?;
@@ -120,6 +120,13 @@ fn parse_pypy_version(url: &str) -> nom::IResult<&str, (String, String, Version)
         rest,
         (filename.to_string(), release_tag.to_string(), version),
     ))
+}
+
+fn parse_pypy_version(url: &str) -> Result<(String, String, Version), Error> {
+    match _parse_pypy_version(url) {
+        Ok((_, (filename, release_tag, version))) => Ok((filename, release_tag, version)),
+        Err(_) => Err(Error::ParseAsset(url.to_string())),
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
@@ -245,7 +252,7 @@ fn pypy_releases() -> Result<Vec<Python>, Error> {
         .filter(|link| link.starts_with(PYPY_DOWNLOAD_URL))
         .filter(|link| link.contains("linux64"))
         .map(|url| {
-            let (_, (name, release_tag, version)) = parse_pypy_version(url).unwrap();
+            let (name, release_tag, version) = parse_pypy_version(url)?;
             Ok(Python {
                 name,
                 url: Url::parse(url)?,
