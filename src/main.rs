@@ -357,7 +357,7 @@ fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     if !virtualenv.exists() {
         create_virtualenv(version, project)?
     }
-    let path = std::env::var("PATH").unwrap();
+    let path = std::env::var("PATH").expect("Could not read PATH environment variable.");
     let path = format!("{}:{path}", virtualenv.join("bin").display());
 
     let mut bash = std::process::Command::new("bash")
