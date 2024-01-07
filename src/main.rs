@@ -229,17 +229,29 @@ fn download_python(version: &Version, upgrade: bool) -> Result<(), Error> {
     }
 }
 
+fn lilyenv_dir() -> directories::ProjectDirs {
+    directories::ProjectDirs::from("", "", "Lilyenv").expect("Could not find the home directory")
+}
+
+fn downloads_dir() -> std::path::PathBuf {
+    lilyenv_dir().cache_dir().join("downloads")
+}
+
+fn pythons_dir() -> std::path::PathBuf {
+    lilyenv_dir().data_local_dir().join("pythons")
+}
+
+fn virtualenvs_dir() -> std::path::PathBuf {
+    lilyenv_dir().data_local_dir().join("virtualenvs")
+}
+
 fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
-    let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
-    let python_dir = lilyenv
-        .data_local_dir()
-        .join("pythons")
-        .join(version.to_string());
+    let python_dir = pythons_dir().join(version.to_string());
     if !upgrade && python_dir.exists() {
         return Ok(());
     }
 
-    let downloads = lilyenv.cache_dir().join("downloads");
+    let downloads = downloads_dir();
     std::fs::create_dir_all(&downloads)?;
 
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -265,16 +277,12 @@ fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
 }
 
 fn download_pypy(version: &Version, upgrade: bool) -> Result<(), Error> {
-    let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
-    let python_dir = lilyenv
-        .data_local_dir()
-        .join("pythons")
-        .join(version.to_string());
+    let python_dir = pythons_dir().join(version.to_string());
     if !upgrade && python_dir.exists() {
         return Ok(());
     }
 
-    let downloads = lilyenv.cache_dir().join("downloads");
+    let downloads = downloads_dir();
     std::fs::create_dir_all(&downloads)?;
 
     let python = match pypy_releases()
@@ -322,21 +330,13 @@ fn extract_tar_bz2(source: &Path, target: &Path) -> Result<(), std::io::Error> {
 }
 
 fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
-    let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
-    let python = lilyenv
-        .data_local_dir()
-        .join("pythons")
-        .join(version.to_string());
+    let python = pythons_dir().join(version.to_string());
     if !python.exists() {
         download_python(version, false)?;
     }
     let next = std::fs::read_dir(python)?.next().unwrap()?.path();
     let python_executable = next.join("bin/python3");
-    let virtualenv = lilyenv
-        .data_local_dir()
-        .join("virtualenvs")
-        .join(project)
-        .join(version.to_string());
+    let virtualenv = virtualenvs_dir().join(project).join(version.to_string());
     std::process::Command::new(python_executable)
         .arg("-m")
         .arg("venv")
@@ -346,12 +346,7 @@ fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
 }
 
 fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
-    let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
-    let virtualenv = lilyenv
-        .data_local_dir()
-        .join("virtualenvs")
-        .join(project)
-        .join(version.to_string());
+    let virtualenv = virtualenvs_dir().join(project).join(version.to_string());
     if !virtualenv.exists() {
         create_virtualenv(version, project)?
     }
@@ -434,8 +429,7 @@ fn run() -> Result<(), Error> {
             println!(include_str!("bash_config"));
         }
         Commands::List { project } => {
-            let lilyenv = directories::ProjectDirs::from("", "", "Lilyenv").unwrap();
-            let projects = lilyenv.data_local_dir().join("virtualenvs");
+            let projects = virtualenvs_dir();
             match project {
                 Some(project) => {
                     let virtualenvs = projects.join(project);
