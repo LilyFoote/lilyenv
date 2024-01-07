@@ -24,6 +24,7 @@ enum Error {
     Fs(std::io::Error),
     VersionNotFound(String),
     InvalidVersion(String),
+    ParseAsset(String),
 }
 
 impl std::fmt::Display for Error {
@@ -34,6 +35,9 @@ impl std::fmt::Display for Error {
             Self::Fs(err) => write!(f, "{err}"),
             Self::VersionNotFound(version) => write!(f, "Could not find {version} to download."),
             Self::InvalidVersion(version) => write!(f, "{version} is not a valid Python version"),
+            Self::ParseAsset(asset) => {
+                write!(f, "Could not parse version and release_tag from {asset}.")
+            }
         }
     }
 }
@@ -58,7 +62,7 @@ impl From<octocrab::Error> for Error {
     }
 }
 
-fn parse_version(filename: &str) -> nom::IResult<&str, (String, Version)> {
+fn _parse_version(filename: &str) -> nom::IResult<&str, (String, Version)> {
     use nom::bytes::complete::tag;
     use nom::character::complete::u8;
     let (input, _) = tag("cpython-")(filename)?;
@@ -79,6 +83,13 @@ fn parse_version(filename: &str) -> nom::IResult<&str, (String, Version)> {
         bugfix: Some(bugfix),
     };
     Ok((input, (release_tag.to_string(), version)))
+}
+
+fn parse_version(filename: &str) -> Result<(String, Version), Error> {
+    match _parse_version(filename) {
+        Ok((_, (release_tag, version))) => Ok((release_tag, version)),
+        Err(_) => Err(Error::ParseAsset(filename.to_string())),
+    }
 }
 
 fn parse_pypy_version(url: &str) -> nom::IResult<&str, (String, String, Version)> {
@@ -173,7 +184,7 @@ fn validate_version(version: &str) -> Result<Version, Error> {
 
 async fn releases() -> Result<Vec<Python>, Error> {
     let octocrab = octocrab::instance();
-    Ok(octocrab
+    octocrab
         .repos("indygreg", "python-build-standalone")
         .releases()
         .list()
@@ -194,15 +205,15 @@ async fn releases() -> Result<Vec<Python>, Error> {
         .filter(|asset| asset.name.contains(CURRENT_PLATFORM))
         .filter(|asset| asset.name.contains("install_only"))
         .map(|asset| {
-            let (_, (release_tag, version)) = parse_version(&asset.name).unwrap();
-            Python {
+            let (release_tag, version) = parse_version(&asset.name)?;
+            Ok(Python {
                 name: asset.name,
                 url: asset.browser_download_url,
                 version,
                 release_tag,
-            }
+            })
         })
-        .collect())
+        .collect()
 }
 
 fn pypy_releases() -> Vec<Python> {
