@@ -412,6 +412,12 @@ fn remove_virtualenv(project: &str, version: &Version) -> Result<(), Error> {
     Ok(())
 }
 
+fn remove_project(project: &str) -> Result<(), Error> {
+    let project = virtualenvs_dir().join(project);
+    std::fs::remove_dir_all(project)?;
+    Ok(())
+}
+
 fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     let virtualenv = virtualenvs_dir().join(project).join(version.to_string());
     if !virtualenv.exists() {
@@ -538,6 +544,8 @@ enum Commands {
     Virtualenv { project: String, version: String },
     /// Remove a virtualenv
     RemoveVirtualenv { project: String, version: String },
+    /// Remove all virtualenvs for a project
+    RemoveProject { project: String },
     /// Download a specific Python version or list all Python versions available to download
     Download { version: Option<String> },
     /// Show information to include in a shell config file
@@ -562,6 +570,9 @@ fn run() -> Result<(), Error> {
         Commands::RemoveVirtualenv { project, version } => {
             let version = validate_version(&version)?;
             remove_virtualenv(&project, &version)?;
+        }
+        Commands::RemoveProject { project } => {
+            remove_project(&project)?;
         }
         Commands::Activate { version, project } => {
             let version = validate_version(&version)?;
