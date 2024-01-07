@@ -27,6 +27,7 @@ enum Error {
     VersionNotFound(String),
     InvalidVersion(String),
     ParseAsset(String),
+    Platform(String),
 }
 
 impl std::fmt::Display for Error {
@@ -42,6 +43,7 @@ impl std::fmt::Display for Error {
                 write!(f, "Could not parse version and release_tag from {asset}.")
             }
             Self::Scraper(error) => write!(f, "{error}"),
+            Self::Platform(platform) => write!(f, "{platform} is not supported."),
         }
     }
 }
@@ -233,6 +235,16 @@ async fn releases() -> Result<Vec<Python>, Error> {
         .collect()
 }
 
+fn pypy_platform_tag() -> Result<&'static str, Error> {
+    match CURRENT_PLATFORM {
+        "x86_64-unknown-linux-gnu" => Ok("linux64"),
+        "x86_64-apple-darwin" => Ok("macos_x86_64"),
+        "aarch64-unknown-linux-gnu" => Ok("aarch64"),
+        "aarch64-apple-darwin" => Ok("macos_arm64"),
+        _ => Err(Error::Platform(CURRENT_PLATFORM.to_string())),
+    }
+}
+
 fn pypy_releases() -> Result<Vec<Python>, Error> {
     let html = reqwest::blocking::get("https://www.pypy.org/download.html")?.text()?;
     let document = scraper::Html::parse_document(&html);
@@ -242,6 +254,7 @@ fn pypy_releases() -> Result<Vec<Python>, Error> {
             "Could not find table of pypy downloads.".to_string(),
         ))?,
     };
+    let tag = pypy_platform_tag()?;
     document
         .select(&selector)
         .map(|link| {
@@ -250,7 +263,7 @@ fn pypy_releases() -> Result<Vec<Python>, Error> {
                 .expect("A pypy download <a> tag has a href attribute.")
         })
         .filter(|link| link.starts_with(PYPY_DOWNLOAD_URL))
-        .filter(|link| link.contains("linux64"))
+        .filter(|link| link.contains(tag))
         .map(|url| {
             let (name, release_tag, version) = parse_pypy_version(url)?;
             Ok(Python {
