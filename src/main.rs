@@ -487,14 +487,14 @@ struct Cli {
 
 #[derive(Subcommand, Debug, Clone)]
 enum Commands {
-    /// Activate a virtualenv given a Python version and a Project string
-    Activate { version: String, project: String },
+    /// Activate a virtualenv given a Project string and a Python version
+    Activate { project: String, version: String },
     /// List all available virtualenvs, or those for the given Project
     List { project: Option<String> },
     /// Upgrade a Python version to the latest bugfix release
     Upgrade { version: String },
-    /// Create a virtualenv given a Python version and a Project string
-    Virtualenv { version: String, project: String },
+    /// Create a virtualenv given a Project string and a Python version
+    Virtualenv { project: String, version: String },
     /// Download a specific Python version or list all Python versions available to download
     Download { version: Option<String> },
     /// Show information to include in a shell config file
