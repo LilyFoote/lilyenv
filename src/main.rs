@@ -386,6 +386,28 @@ fn list_versions(path: std::path::PathBuf) -> Result<Vec<String>, Error> {
         .collect::<Vec<_>>())
 }
 
+fn print_project_versions(project: String) -> Result<(), Error> {
+    let projects = virtualenvs_dir();
+    let virtualenvs = projects.join(project);
+    let versions = list_versions(virtualenvs)?;
+    println!("{}", versions.join(" "));
+    Ok(())
+}
+
+fn print_all_versions() -> Result<(), Error> {
+    let projects = virtualenvs_dir();
+    for project in std::fs::read_dir(projects)? {
+        let project = project?;
+        let versions = list_versions(project.path())?;
+        println!(
+            "{}: {}",
+            project.file_name().to_str().unwrap(),
+            versions.join(" ")
+        );
+    }
+    Ok(())
+}
+
 #[derive(Parser)]
 #[command(author, version, about, long_about=None)]
 struct Cli {
@@ -431,27 +453,10 @@ fn run() -> Result<(), Error> {
         Commands::ShellConfig => {
             println!(include_str!("bash_config"));
         }
-        Commands::List { project } => {
-            let projects = virtualenvs_dir();
-            match project {
-                Some(project) => {
-                    let virtualenvs = projects.join(project);
-                    let versions = list_versions(virtualenvs)?;
-                    println!("{}", versions.join(" "));
-                }
-                None => {
-                    for project in std::fs::read_dir(projects)? {
-                        let project = project?;
-                        let versions = list_versions(project.path())?;
-                        println!(
-                            "{}: {}",
-                            project.file_name().to_str().unwrap(),
-                            versions.join(" ")
-                        );
-                    }
-                }
-            }
-        }
+        Commands::List { project } => match project {
+            Some(project) => print_project_versions(project)?,
+            None => print_all_versions()?,
+        },
         Commands::Upgrade { version } => {
             let version = validate_version(&version)?;
             match version.bugfix {
