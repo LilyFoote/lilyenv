@@ -489,6 +489,12 @@ fn set_project_directory(project: &str, default_directory: &str) -> Result<(), E
     Ok(())
 }
 
+fn unset_project_directory(project: &str) -> Result<(), Error> {
+    let file = virtualenvs_dir().join(project).join("directory");
+    std::fs::remove_file(file)?;
+    Ok(())
+}
+
 fn project_directory(project: &str) -> Result<Option<String>, Error> {
     let file = virtualenvs_dir().join(project).join("directory");
     match std::fs::read_to_string(file) {
@@ -520,6 +526,8 @@ enum Commands {
         project: String,
         default_directory: Option<String>,
     },
+    /// Unset the default directory for a project
+    UnsetProjectDirectory { project: String },
     /// Create a virtualenv given a Project string and a Python version
     Virtualenv { project: String, version: String },
     /// Download a specific Python version or list all Python versions available to download
@@ -574,6 +582,7 @@ fn run() -> Result<(), Error> {
             };
             set_project_directory(&project, &default_directory)?;
         }
+        Commands::UnsetProjectDirectory { project } => unset_project_directory(&project)?,
     }
     Ok(())
 }
