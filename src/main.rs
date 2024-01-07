@@ -185,7 +185,7 @@ async fn releases() -> Result<Vec<Python>, Error> {
             release.created_at
                 > Some(
                     chrono::DateTime::parse_from_rfc3339("2022-02-26T00:00:00Z")
-                        .unwrap()
+                        .expect("Could not parse hardcoded datetime.")
                         .into(),
                 )
         })
