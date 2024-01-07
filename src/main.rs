@@ -21,6 +21,7 @@ struct Python {
 enum Error {
     Request(reqwest::Error),
     Octocrab(octocrab::Error),
+    Scraper(String),
     Fs(std::io::Error),
     VersionNotFound(String),
     InvalidVersion(String),
@@ -38,6 +39,7 @@ impl std::fmt::Display for Error {
             Self::ParseAsset(asset) => {
                 write!(f, "Could not parse version and release_tag from {asset}.")
             }
+            Self::Scraper(error) => write!(f, "{error}"),
         }
     }
 }
@@ -219,7 +221,12 @@ async fn releases() -> Result<Vec<Python>, Error> {
 fn pypy_releases() -> Result<Vec<Python>, Error> {
     let html = reqwest::blocking::get("https://www.pypy.org/download.html")?.text()?;
     let document = scraper::Html::parse_document(&html);
-    let selector = scraper::Selector::parse("table>tbody>tr>td>p>a").unwrap();
+    let selector = match scraper::Selector::parse("table>tbody>tr>td>p>a") {
+        Ok(selector) => selector,
+        Err(_) => Err(Error::Scraper(
+            "Could not find table of pypy downloads.".to_string(),
+        ))?,
+    };
     Ok(document
         .select(&selector)
         .map(|link| link.value().attr("href").unwrap())
