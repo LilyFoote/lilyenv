@@ -366,6 +366,18 @@ fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     Ok(())
 }
 
+fn print_available_downloads() -> Result<(), Error> {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let mut releases = rt.block_on(releases());
+    releases.sort_unstable_by_key(|p| p.version);
+    for python in releases {
+        println!("{} ({})", python.version, python.release_tag);
+    }
+    Ok(())
+}
+
 fn list_versions(path: std::path::PathBuf) -> Result<Vec<String>, Error> {
     Ok(std::fs::read_dir(path)?
         .collect::<Result<Vec<_>, _>>()?
@@ -400,17 +412,8 @@ enum Commands {
 fn run() -> Result<(), Error> {
     let cli = Cli::parse();
 
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
     match cli.cmd {
-        Commands::Download { version: None } => {
-            let mut releases = rt.block_on(releases());
-            releases.sort_unstable_by_key(|p| p.version);
-            for python in releases {
-                println!("{} ({})", python.version, python.release_tag);
-            }
-        }
+        Commands::Download { version: None } => print_available_downloads()?,
         Commands::Download {
             version: Some(version),
         } => {
