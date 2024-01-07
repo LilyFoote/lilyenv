@@ -333,7 +333,15 @@ fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     if !python.exists() {
         download_python(version, false)?;
     }
-    let next = std::fs::read_dir(python)?.next().unwrap()?.path();
+    let next = std::fs::read_dir(&python)?
+        .next()
+        .unwrap_or_else(|| {
+            panic!(
+                "Expected subdirectory missing from downloaded python at {:?}.",
+                &python
+            )
+        })?
+        .path();
     let python_executable = next.join("bin/python3");
     let virtualenv = virtualenvs_dir().join(project).join(version.to_string());
     std::process::Command::new(python_executable)
