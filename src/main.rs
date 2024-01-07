@@ -20,6 +20,7 @@ struct Python {
 #[derive(Debug)]
 enum Error {
     Request(reqwest::Error),
+    Octocrab(octocrab::Error),
     Fs(std::io::Error),
     VersionNotFound(String),
     InvalidVersion(String),
@@ -29,6 +30,7 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Request(err) => write!(f, "{err}"),
+            Self::Octocrab(err) => write!(f, "{err}"),
             Self::Fs(err) => write!(f, "{err}"),
             Self::VersionNotFound(version) => write!(f, "Could not find {version} to download."),
             Self::InvalidVersion(version) => write!(f, "{version} is not a valid Python version"),
@@ -47,6 +49,12 @@ impl From<reqwest::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
         Self::Fs(err)
+    }
+}
+
+impl From<octocrab::Error> for Error {
+    fn from(err: octocrab::Error) -> Self {
+        Self::Octocrab(err)
     }
 }
 
@@ -163,15 +171,14 @@ fn validate_version(version: &str) -> Result<Version, Error> {
     }
 }
 
-async fn releases() -> Vec<Python> {
+async fn releases() -> Result<Vec<Python>, Error> {
     let octocrab = octocrab::instance();
-    octocrab
+    Ok(octocrab
         .repos("indygreg", "python-build-standalone")
         .releases()
         .list()
         .send()
-        .await
-        .unwrap()
+        .await?
         .items
         .into_iter()
         .filter(|release| {
@@ -195,7 +202,7 @@ async fn releases() -> Vec<Python> {
                 release_tag,
             }
         })
-        .collect()
+        .collect())
 }
 
 fn pypy_releases() -> Vec<Python> {
@@ -258,7 +265,7 @@ fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
         .enable_all()
         .build()?;
     let python = match rt
-        .block_on(releases())
+        .block_on(releases())?
         .into_iter()
         .find(|python| python.version.compatible(version))
     {
@@ -377,7 +384,7 @@ fn print_available_downloads() -> Result<(), Error> {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
-    let mut releases = rt.block_on(releases());
+    let mut releases = rt.block_on(releases())?;
     releases.sort_unstable_by_key(|p| p.version);
     for python in releases {
         println!("{} ({})", python.version, python.release_tag);
