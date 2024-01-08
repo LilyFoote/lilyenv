@@ -8,7 +8,7 @@ Lilyenv is written in Rust and can be installed using `cargo install lilyenv`.
 
 ## Usage
 
-* `lilyenv activate <project> <version>` will activate a virtualenv.
+* `lilyenv activate <project> <version>` will activate a virtualenv. The interpreter will be downloaded and the virtualenv created automatically if needed.
 * `lilyenv list` will list all virtualenvs managed by lilyenv. The optional `<project>` argument shows just that project's virtualenvs.
 * `lilyenv upgrade <version>` will upgrade the python interpreter to the latest bugfix release.
 * `lilyenv set-project-directory <project> <default_directory>?` will set the default directory for the `<project>`. If `<default_directory`> is omitted the current directory is used.
