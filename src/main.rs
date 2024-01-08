@@ -28,6 +28,7 @@ enum Error {
     InvalidVersion(String),
     ParseAsset(String),
     Platform(String),
+    EnvVar(std::env::VarError),
 }
 
 impl std::fmt::Display for Error {
@@ -44,6 +45,7 @@ impl std::fmt::Display for Error {
             }
             Self::Scraper(error) => write!(f, "{error}"),
             Self::Platform(platform) => write!(f, "{platform} is not supported."),
+            Self::EnvVar(error) => write!(f, "{error}"),
         }
     }
 }
@@ -71,6 +73,12 @@ impl From<octocrab::Error> for Error {
 impl From<url::ParseError> for Error {
     fn from(err: url::ParseError) -> Self {
         Self::Url(err)
+    }
+}
+
+impl From<std::env::VarError> for Error {
+    fn from(err: std::env::VarError) -> Self {
+        Self::EnvVar(err)
     }
 }
 
@@ -423,15 +431,15 @@ fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     if !virtualenv.exists() {
         create_virtualenv(version, project)?
     }
-    let path = std::env::var("PATH").expect("Could not read PATH environment variable.");
+    let path = std::env::var("PATH")?;
     let path = format!("{}:{path}", virtualenv.join("bin").display());
 
-    let mut bash = std::process::Command::new("bash");
-    let bash = match project_directory(project)? {
-        Some(directory) => bash.current_dir(directory),
-        _ => &mut bash,
+    let mut shell = std::process::Command::new(get_shell()?);
+    let shell = match project_directory(project)? {
+        Some(directory) => shell.current_dir(directory),
+        _ => &mut shell,
     };
-    let mut bash = bash
+    let mut shell = shell
         .env("VIRTUAL_ENV", &virtualenv)
         .env("VIRTUAL_ENV_PROMPT", format!("{project} ({version}) "))
         .env("PATH", path)
@@ -440,7 +448,7 @@ fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
             "/etc/terminfo:/lib/terminfo:/usr/share/terminfo",
         )
         .spawn()?;
-    bash.wait()?;
+    shell.wait()?;
     Ok(())
 }
 
@@ -518,6 +526,23 @@ fn project_directory(project: &str) -> Result<Option<String>, Error> {
     }
 }
 
+fn set_shell(shell: &str) -> Result<(), Error> {
+    let file = lilyenv_dir().data_local_dir().join("shell");
+    std::fs::write(file, shell)?;
+    Ok(())
+}
+
+fn get_shell() -> Result<String, Error> {
+    let file = lilyenv_dir().data_local_dir().join("shell");
+    match std::fs::read_to_string(file) {
+        Ok(shell) => Ok(shell),
+        Err(err) => match err.kind() {
+            std::io::ErrorKind::NotFound => Ok(std::env::var("SHELL")?),
+            _ => Err(err)?,
+        },
+    }
+}
+
 #[derive(Parser)]
 #[command(author, version, about, long_about=None)]
 struct Cli {
@@ -548,6 +573,8 @@ enum Commands {
     RemoveProject { project: String },
     /// Download a specific Python version or list all Python versions available to download
     Download { version: Option<String> },
+    /// Explicitly set the shell for lilyenv to use
+    SetShell { shell: String },
     /// Show information to include in a shell config file
     ShellConfig,
 }
@@ -578,9 +605,12 @@ fn run() -> Result<(), Error> {
             let version = validate_version(&version)?;
             activate_virtualenv(&version, &project)?;
         }
-        Commands::ShellConfig => {
-            println!(include_str!("bash_config"));
-        }
+        Commands::SetShell { shell } => set_shell(&shell)?,
+        Commands::ShellConfig => match get_shell()?.as_str() {
+            "bash" => println!(include_str!("bash_config")),
+            "zsh" => println!(include_str!("zsh_config")),
+            _ => println!("Unknown shell"),
+        },
         Commands::List { project } => match project {
             Some(project) => print_project_versions(project)?,
             None => print_all_versions()?,
