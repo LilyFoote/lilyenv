@@ -461,6 +461,11 @@ fn print_available_downloads() -> Result<(), Error> {
     for python in releases {
         println!("{} ({})", python.version, python.release_tag);
     }
+    let mut pypy_releases = pypy_releases()?;
+    pypy_releases.sort_unstable_by_key(|p| p.version);
+    for python in pypy_releases {
+        println!("{} ({})", python.version, python.release_tag);
+    }
     Ok(())
 }
 
