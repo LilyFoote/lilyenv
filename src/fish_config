@@ -1,0 +1,6 @@
+function fish_prompt
+    if test -n "$VIRTUAL_ENV_PROMPT"
+        printf "%s%s%s" (set_color 4B8BBE) "$VIRTUAL_ENV_PROMPT" (set_color normal)
+    end
+    # The rest of your prompt
+end

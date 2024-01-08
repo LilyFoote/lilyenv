@@ -609,6 +609,7 @@ fn run() -> Result<(), Error> {
         Commands::ShellConfig => match get_shell()?.as_str() {
             "bash" => println!(include_str!("bash_config")),
             "zsh" => println!(include_str!("zsh_config")),
+            "fish" => println!(include_str!("fish_config")),
             _ => println!("Unknown shell"),
         },
         Commands::List { project } => match project {
