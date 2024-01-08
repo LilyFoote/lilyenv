@@ -8,6 +8,7 @@ readme = "README.md"
 repository = "https://github.com/LilyFoote/lilyenv"
 keywords = ["python", "virtualenv"]
 categories = ["command-line-utilities", "development-tools", "virtualization"]
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
