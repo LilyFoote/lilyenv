@@ -439,6 +439,7 @@ fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
         Some(directory) => shell.current_dir(directory),
         _ => &mut shell,
     };
+    let python = pythons_dir().join(version.to_string()).join("python");
     let mut shell = shell
         .env("VIRTUAL_ENV", &virtualenv)
         .env("VIRTUAL_ENV_PROMPT", format!("{project} ({version}) "))
@@ -447,6 +448,7 @@ fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
             "TERMINFO_DIRS",
             "/etc/terminfo:/lib/terminfo:/usr/share/terminfo",
         )
+        .env("LD_LIBRARY_PATH", python.join("lib"))
         .spawn()?;
     shell.wait()?;
     Ok(())
