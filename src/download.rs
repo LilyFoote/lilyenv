@@ -145,5 +145,16 @@ fn fixup_sysconfig_paths(python_dir: &Path) -> Result<(), Error> {
     let data = data.replace(" /install", &format!(" {}", install_dir));
     let data = data.replace("=/install", &format!("={}", install_dir));
     std::fs::write(&sysconfig, data)?;
+
+    let pkgconfig = root.join("lib").join("pkgconfig");
+    for dir in pkgconfig.read_dir()? {
+        let path = dir?.path();
+        if path.is_symlink() {
+            continue;
+        }
+        let data = std::fs::read_to_string(&path)?;
+        let data = data.replace("=/install", &format!("={}", install_dir));
+        std::fs::write(&path, data)?;
+    }
     Ok(())
 }
