@@ -1,6 +1,6 @@
 [package]
 name = "lilyenv"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Lily Foote"]
 edition = "2021"
 description = "A Python interpreter and virtualenv manager"
