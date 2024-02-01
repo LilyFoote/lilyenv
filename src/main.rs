@@ -454,6 +454,27 @@ fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     Ok(())
 }
 
+fn cd_site_packages(project: &str, version: &Version) -> Result<(), Error> {
+    let virtualenv = virtualenvs_dir().join(project).join(version.to_string());
+    let lib = virtualenv.join("lib");
+    let next = std::fs::read_dir(&lib)?
+        .next()
+        .unwrap_or_else(|| {
+            panic!(
+                "Expected subdirectory missing from virtualenv at {:?}.",
+                &lib
+            )
+        })?
+        .path();
+    let site_packages = next.join("site-packages");
+
+    let mut shell = std::process::Command::new(get_shell()?)
+        .current_dir(site_packages)
+        .spawn()?;
+    shell.wait()?;
+    Ok(())
+}
+
 fn print_available_downloads() -> Result<(), Error> {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -565,6 +586,8 @@ enum Commands {
     List { project: Option<String> },
     /// Upgrade a Python version to the latest bugfix release
     Upgrade { version: String },
+    /// Open a subshell in a virtualenv's site packages
+    SitePackages { project: String, version: String },
     /// Set the default directory for a project
     SetProjectDirectory {
         project: String,
@@ -644,6 +667,10 @@ fn run() -> Result<(), Error> {
             set_project_directory(&project, &default_directory)?;
         }
         Commands::UnsetProjectDirectory { project } => unset_project_directory(&project)?,
+        Commands::SitePackages { project, version } => {
+            let version = validate_version(&version)?;
+            cd_site_packages(&project, &version)?;
+        }
     }
     Ok(())
 }
