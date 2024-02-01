@@ -10,7 +10,7 @@ mod error;
 mod releases;
 mod types;
 use crate::error::Error;
-use crate::releases::{pypy_releases, releases};
+use crate::releases::{cpython_releases, pypy_releases};
 use crate::types::{Interpreter, Version};
 
 fn download_python(version: &Version, upgrade: bool) -> Result<(), Error> {
@@ -49,7 +49,7 @@ fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
         .enable_all()
         .build()?;
     let python = match rt
-        .block_on(releases())?
+        .block_on(cpython_releases())?
         .into_iter()
         .find(|python| python.version.compatible(version))
     {
@@ -208,7 +208,7 @@ fn print_available_downloads() -> Result<(), Error> {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
-    let mut releases = rt.block_on(releases())?;
+    let mut releases = rt.block_on(cpython_releases())?;
     releases.sort_unstable_by_key(|p| p.version);
     for python in releases {
         println!("{} ({})", python.version, python.release_tag);

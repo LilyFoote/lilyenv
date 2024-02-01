@@ -11,7 +11,7 @@ pub struct Python {
     pub release_tag: String,
 }
 
-pub async fn releases() -> Result<Vec<Python>, Error> {
+pub async fn cpython_releases() -> Result<Vec<Python>, Error> {
     let octocrab = octocrab::instance();
     octocrab
         .repos("indygreg", "python-build-standalone")
