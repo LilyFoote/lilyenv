@@ -77,24 +77,10 @@ fn parse_version(version: &str) -> nom::IResult<&str, Version> {
 
 fn _parse_cpython_filename(filename: &str) -> nom::IResult<&str, (String, Version)> {
     use nom::bytes::complete::tag;
-    use nom::character::complete::u8;
     let (input, _) = tag("cpython-")(filename)?;
-    let (input, (major, _, minor, _, bugfix, _, release_tag)) = nom::sequence::tuple((
-        u8,
-        tag("."),
-        u8,
-        tag("."),
-        u8,
-        tag("+"),
-        nom::character::complete::digit1,
-    ))(input)?;
-
-    let version = Version {
-        interpreter: Interpreter::CPython,
-        major,
-        minor,
-        bugfix: Some(bugfix),
-    };
+    let (input, version) = parse_version(input)?;
+    let (input, _) = tag("+")(input)?;
+    let (input, release_tag) = nom::character::complete::digit1(input)?;
     Ok((input, (release_tag.to_string(), version)))
 }
 
@@ -107,17 +93,10 @@ pub fn parse_cpython_filename(filename: &str) -> Result<(String, Version), Error
 
 fn _parse_pypy_url(url: &str) -> nom::IResult<&str, (String, String, Version)> {
     use nom::bytes::complete::{tag, take_until};
-    use nom::character::complete::u8;
     let (filename, _) = tag(PYPY_DOWNLOAD_URL)(url)?;
-    let (rest, (_, major, _, minor, _, release_tag)) =
-        nom::sequence::tuple((tag("pypy"), u8, tag("."), u8, tag("-"), take_until("-")))(filename)?;
-
-    let version = Version {
-        interpreter: Interpreter::PyPy,
-        major,
-        minor,
-        bugfix: None,
-    };
+    let (rest, version) = parse_version(filename)?;
+    let (rest, _) = tag("-")(rest)?;
+    let (rest, release_tag) = take_until("-")(rest)?;
 
     Ok((
         rest,
