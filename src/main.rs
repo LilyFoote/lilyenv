@@ -179,7 +179,18 @@ impl std::fmt::Display for Version {
     }
 }
 
-fn _validate_version(version: &str) -> nom::IResult<&str, Version> {
+impl std::str::FromStr for Version {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match validate_version(s) {
+            Ok((_, version)) => Ok(version),
+            Err(_) => Err(Error::InvalidVersion(s.into())),
+        }
+    }
+}
+
+fn validate_version(version: &str) -> nom::IResult<&str, Version> {
     use nom::bytes::complete::tag;
     use nom::character::complete::u8;
     use nom::sequence::separated_pair;
@@ -200,13 +211,6 @@ fn _validate_version(version: &str) -> nom::IResult<&str, Version> {
             bugfix,
         },
     ))
-}
-
-fn validate_version(version: &str) -> Result<Version, Error> {
-    match _validate_version(version) {
-        Ok((_, version)) => Ok(version),
-        Err(_) => Err(Error::InvalidVersion(version.into())),
-    }
 }
 
 async fn releases() -> Result<Vec<Python>, Error> {
@@ -581,13 +585,13 @@ struct Cli {
 #[derive(Subcommand, Debug, Clone)]
 enum Commands {
     /// Activate a virtualenv given a Project string and a Python version
-    Activate { project: String, version: String },
+    Activate { project: String, version: Version },
     /// List all available virtualenvs, or those for the given Project
     List { project: Option<String> },
     /// Upgrade a Python version to the latest bugfix release
-    Upgrade { version: String },
+    Upgrade { version: Version },
     /// Open a subshell in a virtualenv's site packages
-    SitePackages { project: String, version: String },
+    SitePackages { project: String, version: Version },
     /// Set the default directory for a project
     SetProjectDirectory {
         project: String,
@@ -596,13 +600,13 @@ enum Commands {
     /// Unset the default directory for a project
     UnsetProjectDirectory { project: String },
     /// Create a virtualenv given a Project string and a Python version
-    Virtualenv { project: String, version: String },
+    Virtualenv { project: String, version: Version },
     /// Remove a virtualenv
-    RemoveVirtualenv { project: String, version: String },
+    RemoveVirtualenv { project: String, version: Version },
     /// Remove all virtualenvs for a project
     RemoveProject { project: String },
     /// Download a specific Python version or list all Python versions available to download
-    Download { version: Option<String> },
+    Download { version: Option<Version> },
     /// Explicitly set the shell for lilyenv to use
     SetShell { shell: String },
     /// Show information to include in a shell config file
@@ -617,22 +621,18 @@ fn run() -> Result<(), Error> {
         Commands::Download {
             version: Some(version),
         } => {
-            let version = validate_version(&version)?;
             download_python(&version, false)?;
         }
         Commands::Virtualenv { version, project } => {
-            let version = validate_version(&version)?;
             create_virtualenv(&version, &project)?;
         }
         Commands::RemoveVirtualenv { project, version } => {
-            let version = validate_version(&version)?;
             remove_virtualenv(&project, &version)?;
         }
         Commands::RemoveProject { project } => {
             remove_project(&project)?;
         }
         Commands::Activate { version, project } => {
-            let version = validate_version(&version)?;
             activate_virtualenv(&version, &project)?;
         }
         Commands::SetShell { shell } => set_shell(&shell)?,
@@ -646,13 +646,10 @@ fn run() -> Result<(), Error> {
             Some(project) => print_project_versions(project)?,
             None => print_all_versions()?,
         },
-        Commands::Upgrade { version } => {
-            let version = validate_version(&version)?;
-            match version.bugfix {
-                Some(_) => eprintln!("Only x.y Python versions can be upgraded, not x.y.z"),
-                None => download_python(&version, true)?,
-            }
-        }
+        Commands::Upgrade { version } => match version.bugfix {
+            Some(_) => eprintln!("Only x.y Python versions can be upgraded, not x.y.z"),
+            None => download_python(&version, true)?,
+        },
         Commands::SetProjectDirectory {
             project,
             default_directory,
@@ -668,7 +665,6 @@ fn run() -> Result<(), Error> {
         }
         Commands::UnsetProjectDirectory { project } => unset_project_directory(&project)?,
         Commands::SitePackages { project, version } => {
-            let version = validate_version(&version)?;
             cd_site_packages(&project, &version)?;
         }
     }
