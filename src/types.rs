@@ -47,8 +47,8 @@ impl std::str::FromStr for Version {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match parse_version(s) {
-            Ok((_, version)) => Ok(version),
-            Err(_) => Err(Error::InvalidVersion(s.into())),
+            Ok(("", version)) => Ok(version),
+            _ => Err(Error::InvalidVersion(s.into())),
         }
     }
 }
@@ -60,7 +60,6 @@ fn parse_version(version: &str) -> nom::IResult<&str, Version> {
     let (rest, interpreter) = nom::combinator::opt(tag("pypy"))(version)?;
     let (rest, (major, minor)) = separated_pair(u8, tag("."), u8)(rest)?;
     let (rest, bugfix) = nom::combinator::opt(nom::sequence::preceded(tag("."), u8))(rest)?;
-    nom::combinator::eof(rest)?;
     let interpreter = match interpreter {
         Some(_) => Interpreter::PyPy,
         None => Interpreter::CPython,
@@ -130,5 +129,91 @@ pub fn parse_pypy_url(url: &str) -> Result<(String, String, Version), Error> {
     match _parse_pypy_url(url) {
         Ok((_, (filename, release_tag, version))) => Ok((filename, release_tag, version)),
         Err(_) => Err(Error::ParseAsset(url.to_string())),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_version_from_str() {
+        assert_eq!(
+            "3.12".parse::<Version>().unwrap(),
+            Version {
+                interpreter: Interpreter::CPython,
+                major: 3,
+                minor: 12,
+                bugfix: None
+            }
+        );
+
+        assert_eq!(
+            "3.12.1".parse::<Version>().unwrap(),
+            Version {
+                interpreter: Interpreter::CPython,
+                major: 3,
+                minor: 12,
+                bugfix: Some(1),
+            }
+        );
+
+        assert_eq!(
+            "pypy3.10".parse::<Version>().unwrap(),
+            Version {
+                interpreter: Interpreter::PyPy,
+                major: 3,
+                minor: 10,
+                bugfix: None
+            }
+        );
+
+        assert_eq!(
+            "pypy3.10.4".parse::<Version>().unwrap(),
+            Version {
+                interpreter: Interpreter::PyPy,
+                major: 3,
+                minor: 10,
+                bugfix: Some(4)
+            }
+        );
+    }
+
+    #[test]
+    fn test_invalid_version() {
+        let version = "3";
+        let err = version.parse::<Version>();
+        assert!(matches!(err, Err(Error::InvalidVersion(_))));
+        if let Err(Error::InvalidVersion(s)) = err {
+            assert_eq!(s, version);
+        }
+
+        let version = "3.";
+        let err = version.parse::<Version>();
+        assert!(matches!(err, Err(Error::InvalidVersion(_))));
+        if let Err(Error::InvalidVersion(s)) = err {
+            assert_eq!(s, version);
+        }
+
+        let version = "3.10.";
+        let err = version.parse::<Version>();
+        assert!(matches!(err, Err(Error::InvalidVersion(_))));
+        if let Err(Error::InvalidVersion(s)) = err {
+            assert_eq!(s, version);
+        }
+
+        let version = "py3.10.4";
+        let err = version.parse::<Version>();
+        assert!(matches!(err, Err(Error::InvalidVersion(_))));
+        if let Err(Error::InvalidVersion(s)) = err {
+            assert_eq!(s, version);
+        }
+
+        let version = "3.12.3abc";
+        let err = version.parse::<Version>();
+        assert!(matches!(err, Err(Error::InvalidVersion(_))));
+        if let Err(Error::InvalidVersion(s)) = err {
+            assert_eq!(s, version);
+        }
     }
 }
