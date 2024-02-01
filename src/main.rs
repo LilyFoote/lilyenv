@@ -10,7 +10,9 @@ use url::Url;
 mod error;
 mod types;
 use crate::error::Error;
-use crate::types::{parse_pypy_version, parse_version, Interpreter, Version, PYPY_DOWNLOAD_URL};
+use crate::types::{
+    parse_cpython_filename, parse_pypy_url, Interpreter, Version, PYPY_DOWNLOAD_URL,
+};
 
 #[derive(Debug)]
 struct Python {
@@ -43,7 +45,7 @@ async fn releases() -> Result<Vec<Python>, Error> {
         .filter(|asset| asset.name.contains(CURRENT_PLATFORM))
         .filter(|asset| asset.name.contains("install_only"))
         .map(|asset| {
-            let (release_tag, version) = parse_version(&asset.name)?;
+            let (release_tag, version) = parse_cpython_filename(&asset.name)?;
             Ok(Python {
                 name: asset.name,
                 url: asset.browser_download_url,
@@ -84,7 +86,7 @@ fn pypy_releases() -> Result<Vec<Python>, Error> {
         .filter(|link| link.starts_with(PYPY_DOWNLOAD_URL))
         .filter(|link| link.contains(tag))
         .map(|url| {
-            let (name, release_tag, version) = parse_pypy_version(url)?;
+            let (name, release_tag, version) = parse_pypy_url(url)?;
             Ok(Python {
                 name,
                 url: Url::parse(url)?,

@@ -76,7 +76,7 @@ fn validate_version(version: &str) -> nom::IResult<&str, Version> {
     ))
 }
 
-fn _parse_version(filename: &str) -> nom::IResult<&str, (String, Version)> {
+fn _parse_cpython_filename(filename: &str) -> nom::IResult<&str, (String, Version)> {
     use nom::bytes::complete::tag;
     use nom::character::complete::u8;
     let (input, _) = tag("cpython-")(filename)?;
@@ -99,14 +99,14 @@ fn _parse_version(filename: &str) -> nom::IResult<&str, (String, Version)> {
     Ok((input, (release_tag.to_string(), version)))
 }
 
-pub fn parse_version(filename: &str) -> Result<(String, Version), Error> {
-    match _parse_version(filename) {
+pub fn parse_cpython_filename(filename: &str) -> Result<(String, Version), Error> {
+    match _parse_cpython_filename(filename) {
         Ok((_, (release_tag, version))) => Ok((release_tag, version)),
         Err(_) => Err(Error::ParseAsset(filename.to_string())),
     }
 }
 
-fn _parse_pypy_version(url: &str) -> nom::IResult<&str, (String, String, Version)> {
+fn _parse_pypy_url(url: &str) -> nom::IResult<&str, (String, String, Version)> {
     use nom::bytes::complete::{tag, take_until};
     use nom::character::complete::u8;
     let (filename, _) = tag(PYPY_DOWNLOAD_URL)(url)?;
@@ -126,8 +126,8 @@ fn _parse_pypy_version(url: &str) -> nom::IResult<&str, (String, String, Version
     ))
 }
 
-pub fn parse_pypy_version(url: &str) -> Result<(String, String, Version), Error> {
-    match _parse_pypy_version(url) {
+pub fn parse_pypy_url(url: &str) -> Result<(String, String, Version), Error> {
+    match _parse_pypy_url(url) {
         Ok((_, (filename, release_tag, version))) => Ok((filename, release_tag, version)),
         Err(_) => Err(Error::ParseAsset(url.to_string())),
     }
