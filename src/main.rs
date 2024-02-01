@@ -4,12 +4,12 @@ mod directories;
 mod download;
 mod error;
 mod releases;
+mod shell;
 mod types;
-use crate::directories::{
-    project_dir, project_file, python_dir, shell_file, virtualenv_dir, virtualenvs_dir,
-};
+use crate::directories::{project_dir, project_file, python_dir, virtualenv_dir, virtualenvs_dir};
 use crate::download::{download_python, print_available_downloads};
 use crate::error::Error;
+use crate::shell::{get_shell, print_shell_config, set_shell};
 use crate::types::Version;
 
 fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
@@ -154,21 +154,6 @@ fn project_directory(project: &str) -> Result<Option<String>, Error> {
     }
 }
 
-fn set_shell(shell: &str) -> Result<(), Error> {
-    std::fs::write(shell_file(), shell)?;
-    Ok(())
-}
-
-fn get_shell() -> Result<String, Error> {
-    match std::fs::read_to_string(shell_file()) {
-        Ok(shell) => Ok(shell),
-        Err(err) => match err.kind() {
-            std::io::ErrorKind::NotFound => Ok(std::env::var("SHELL")?),
-            _ => Err(err)?,
-        },
-    }
-}
-
 #[derive(Parser)]
 #[command(author, version, about, long_about=None)]
 struct Cli {
@@ -230,12 +215,7 @@ fn run() -> Result<(), Error> {
             activate_virtualenv(&version, &project)?;
         }
         Commands::SetShell { shell } => set_shell(&shell)?,
-        Commands::ShellConfig => match get_shell()?.as_str() {
-            "bash" => println!(include_str!("bash_config")),
-            "zsh" => println!(include_str!("zsh_config")),
-            "fish" => println!(include_str!("fish_config")),
-            _ => println!("Unknown shell"),
-        },
+        Commands::ShellConfig => print_shell_config()?,
         Commands::List { project } => match project {
             Some(project) => print_project_versions(project)?,
             None => print_all_versions()?,
