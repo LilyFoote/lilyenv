@@ -5,12 +5,12 @@ mod download;
 mod error;
 mod releases;
 mod shell;
-mod types;
+mod version;
 mod virtualenvs;
 use crate::download::{download_python, print_available_downloads};
 use crate::error::Error;
 use crate::shell::{print_shell_config, set_shell};
-use crate::types::Version;
+use crate::version::Version;
 use crate::virtualenvs::{
     activate_virtualenv, cd_site_packages, create_virtualenv, print_all_versions,
     print_project_versions, remove_project, remove_virtualenv, set_project_directory,

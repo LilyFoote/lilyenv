@@ -1,4 +1,4 @@
-use crate::types::Version;
+use crate::version::Version;
 
 fn lilyenv_dir() -> directories::ProjectDirs {
     directories::ProjectDirs::from("", "", "Lilyenv").expect("Could not find the home directory")

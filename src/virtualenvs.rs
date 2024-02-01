@@ -2,7 +2,7 @@ use crate::directories::{project_dir, project_file, python_dir, virtualenv_dir, 
 use crate::download::download_python;
 use crate::error::Error;
 use crate::shell::get_shell;
-use crate::types::Version;
+use crate::version::Version;
 
 pub fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     let python = python_dir(version);

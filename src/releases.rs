@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::types::{parse_cpython_filename, parse_pypy_url, Version, PYPY_DOWNLOAD_URL};
+use crate::version::{parse_cpython_filename, parse_pypy_url, Version, PYPY_DOWNLOAD_URL};
 use current_platform::CURRENT_PLATFORM;
 use url::Url;
 

@@ -1,7 +1,7 @@
 use crate::directories::{downloads_dir, python_dir};
 use crate::error::Error;
 use crate::releases::{cpython_releases, pypy_releases};
-use crate::types::{Interpreter, Version};
+use crate::version::{Interpreter, Version};
 use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
 use std::fs::File;
