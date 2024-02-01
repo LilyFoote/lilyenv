@@ -216,4 +216,37 @@ mod tests {
             assert_eq!(s, version);
         }
     }
+
+    #[test]
+    fn test_parse_cpython_filename() {
+        let filename = "cpython-3.10.13+20240107-x86_64-unknown-linux-gnu-install_only.tar.gz";
+        let (release_tag, version) = parse_cpython_filename(filename).unwrap();
+        assert_eq!(release_tag, "20240107");
+        assert_eq!(
+            version,
+            Version {
+                interpreter: Interpreter::CPython,
+                major: 3,
+                minor: 10,
+                bugfix: Some(13)
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_pypy_url() {
+        let url = "https://downloads.python.org/pypy/pypy3.10-v7.3.15-linux64.tar.bz2";
+        let (filename, release_tag, version) = parse_pypy_url(url).unwrap();
+        assert_eq!(filename, "pypy3.10-v7.3.15-linux64.tar.bz2");
+        assert_eq!(release_tag, "v7.3.15");
+        assert_eq!(
+            version,
+            Version {
+                interpreter: Interpreter::PyPy,
+                major: 3,
+                minor: 10,
+                bugfix: None
+            }
+        );
+    }
 }
