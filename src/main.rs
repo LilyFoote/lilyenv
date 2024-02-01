@@ -6,9 +6,14 @@ use std::path::Path;
 use tar::Archive;
 use url::Url;
 
+mod directories;
 mod error;
 mod releases;
 mod types;
+use crate::directories::{
+    downloads_dir, project_dir, project_file, python_dir, shell_file, virtualenv_dir,
+    virtualenvs_dir,
+};
 use crate::error::Error;
 use crate::releases::{cpython_releases, pypy_releases};
 use crate::types::{Interpreter, Version};
@@ -20,24 +25,8 @@ fn download_python(version: &Version, upgrade: bool) -> Result<(), Error> {
     }
 }
 
-fn lilyenv_dir() -> directories::ProjectDirs {
-    directories::ProjectDirs::from("", "", "Lilyenv").expect("Could not find the home directory")
-}
-
-fn downloads_dir() -> std::path::PathBuf {
-    lilyenv_dir().cache_dir().join("downloads")
-}
-
-fn pythons_dir() -> std::path::PathBuf {
-    lilyenv_dir().data_local_dir().join("pythons")
-}
-
-fn virtualenvs_dir() -> std::path::PathBuf {
-    lilyenv_dir().data_local_dir().join("virtualenvs")
-}
-
 fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
-    let python_dir = pythons_dir().join(version.to_string());
+    let python_dir = python_dir(version);
     if !upgrade && python_dir.exists() {
         return Ok(());
     }
@@ -67,7 +56,7 @@ fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
 }
 
 fn download_pypy(version: &Version, upgrade: bool) -> Result<(), Error> {
-    let python_dir = pythons_dir().join(version.to_string());
+    let python_dir = python_dir(version);
     if !upgrade && python_dir.exists() {
         return Ok(());
     }
@@ -120,7 +109,7 @@ fn extract_tar_bz2(source: &Path, target: &Path) -> Result<(), std::io::Error> {
 }
 
 fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
-    let python = pythons_dir().join(version.to_string());
+    let python = python_dir(version);
     if !python.exists() {
         download_python(version, false)?;
     }
@@ -134,7 +123,7 @@ fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
         })?
         .path();
     let python_executable = next.join("bin/python3");
-    let virtualenv = virtualenvs_dir().join(project).join(version.to_string());
+    let virtualenv = virtualenv_dir(project, version);
     std::process::Command::new(python_executable)
         .arg("-m")
         .arg("venv")
@@ -144,19 +133,18 @@ fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
 }
 
 fn remove_virtualenv(project: &str, version: &Version) -> Result<(), Error> {
-    let virtualenv = virtualenvs_dir().join(project).join(version.to_string());
+    let virtualenv = virtualenv_dir(project, version);
     std::fs::remove_dir_all(virtualenv)?;
     Ok(())
 }
 
 fn remove_project(project: &str) -> Result<(), Error> {
-    let project = virtualenvs_dir().join(project);
-    std::fs::remove_dir_all(project)?;
+    std::fs::remove_dir_all(project_dir(project))?;
     Ok(())
 }
 
 fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
-    let virtualenv = virtualenvs_dir().join(project).join(version.to_string());
+    let virtualenv = virtualenv_dir(project, version);
     if !virtualenv.exists() {
         create_virtualenv(version, project)?
     }
@@ -168,7 +156,7 @@ fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
         Some(directory) => shell.current_dir(directory),
         _ => &mut shell,
     };
-    let python = pythons_dir().join(version.to_string()).join("python");
+    let python = python_dir(version).join("python");
     let mut shell = shell
         .env("VIRTUAL_ENV", &virtualenv)
         .env("VIRTUAL_ENV_PROMPT", format!("{project} ({version}) "))
@@ -184,7 +172,7 @@ fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
 }
 
 fn cd_site_packages(project: &str, version: &Version) -> Result<(), Error> {
-    let virtualenv = virtualenvs_dir().join(project).join(version.to_string());
+    let virtualenv = virtualenv_dir(project, version);
     let lib = virtualenv.join("lib");
     let next = std::fs::read_dir(&lib)?
         .next()
@@ -236,8 +224,7 @@ fn list_versions(path: std::path::PathBuf) -> Result<Vec<String>, Error> {
 }
 
 fn print_project_versions(project: String) -> Result<(), Error> {
-    let projects = virtualenvs_dir();
-    let virtualenvs = projects.join(project);
+    let virtualenvs = project_dir(&project);
     let versions = list_versions(virtualenvs)?;
     println!("{}", versions.join(" "));
     Ok(())
@@ -261,20 +248,17 @@ fn print_all_versions() -> Result<(), Error> {
 }
 
 fn set_project_directory(project: &str, default_directory: &str) -> Result<(), Error> {
-    let file = virtualenvs_dir().join(project).join("directory");
-    std::fs::write(file, default_directory)?;
+    std::fs::write(project_file(project), default_directory)?;
     Ok(())
 }
 
 fn unset_project_directory(project: &str) -> Result<(), Error> {
-    let file = virtualenvs_dir().join(project).join("directory");
-    std::fs::remove_file(file)?;
+    std::fs::remove_file(project_file(project))?;
     Ok(())
 }
 
 fn project_directory(project: &str) -> Result<Option<String>, Error> {
-    let file = virtualenvs_dir().join(project).join("directory");
-    match std::fs::read_to_string(file) {
+    match std::fs::read_to_string(project_file(project)) {
         Ok(default_directory) => Ok(Some(default_directory)),
         Err(err) => match err.kind() {
             std::io::ErrorKind::NotFound => Ok(None),
@@ -284,14 +268,12 @@ fn project_directory(project: &str) -> Result<Option<String>, Error> {
 }
 
 fn set_shell(shell: &str) -> Result<(), Error> {
-    let file = lilyenv_dir().data_local_dir().join("shell");
-    std::fs::write(file, shell)?;
+    std::fs::write(shell_file(), shell)?;
     Ok(())
 }
 
 fn get_shell() -> Result<String, Error> {
-    let file = lilyenv_dir().data_local_dir().join("shell");
-    match std::fs::read_to_string(file) {
+    match std::fs::read_to_string(shell_file()) {
         Ok(shell) => Ok(shell),
         Err(err) => match err.kind() {
             std::io::ErrorKind::NotFound => Ok(std::env::var("SHELL")?),
