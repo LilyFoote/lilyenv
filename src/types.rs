@@ -46,14 +46,14 @@ impl std::str::FromStr for Version {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match validate_version(s) {
+        match parse_version(s) {
             Ok((_, version)) => Ok(version),
             Err(_) => Err(Error::InvalidVersion(s.into())),
         }
     }
 }
 
-fn validate_version(version: &str) -> nom::IResult<&str, Version> {
+fn parse_version(version: &str) -> nom::IResult<&str, Version> {
     use nom::bytes::complete::tag;
     use nom::character::complete::u8;
     use nom::sequence::separated_pair;
