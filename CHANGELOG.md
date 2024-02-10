@@ -1,3 +1,7 @@
+# 1.1.1
+
+* Fix paths in `sysconfig` and `pkgconfig` to match the interpreter's location after being downloaded.
+
 # 1.1.0
 
 * Add `lilyenv site-packages` command to open a subshell in a virtualenv's site-packages.
