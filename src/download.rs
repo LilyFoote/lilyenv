@@ -60,6 +60,7 @@ fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
         download_file(python.url, &path)?;
     }
     extract_tar_gz(&path, &python_dir)?;
+    fixup_sysconfig_paths(&python_dir)?;
     Ok(())
 }
 
@@ -113,5 +114,47 @@ fn extract_tar_bz2(source: &Path, target: &Path) -> Result<(), std::io::Error> {
     let tar = BzDecoder::new(tar_gz);
     let mut archive = Archive::new(tar);
     archive.unpack(target)?;
+    Ok(())
+}
+
+fn fixup_sysconfig_paths(python_dir: &Path) -> Result<(), Error> {
+    let root = python_dir.join("python");
+    let lib = root
+        .join("lib")
+        .read_dir()?
+        .collect::<Result<Vec<std::fs::DirEntry>, std::io::Error>>()?
+        .into_iter()
+        .find(|dir| dir.file_name().to_str().unwrap().starts_with("python"))
+        .unwrap();
+    let sysconfig = lib
+        .path()
+        .read_dir()?
+        .collect::<Result<Vec<std::fs::DirEntry>, std::io::Error>>()?
+        .into_iter()
+        .find(|dir| {
+            dir.file_name()
+                .to_str()
+                .unwrap()
+                .contains("_sysconfigdata_")
+        })
+        .unwrap()
+        .path();
+    let data = std::fs::read_to_string(&sysconfig)?;
+    let install_dir = root.to_str().unwrap();
+    let data = data.replace("'/install", &format!("'{}", install_dir));
+    let data = data.replace(" /install", &format!(" {}", install_dir));
+    let data = data.replace("=/install", &format!("={}", install_dir));
+    std::fs::write(&sysconfig, data)?;
+
+    let pkgconfig = root.join("lib").join("pkgconfig");
+    for dir in pkgconfig.read_dir()? {
+        let path = dir?.path();
+        if path.is_symlink() {
+            continue;
+        }
+        let data = std::fs::read_to_string(&path)?;
+        let data = data.replace("=/install", &format!("={}", install_dir));
+        std::fs::write(&path, data)?;
+    }
     Ok(())
 }
