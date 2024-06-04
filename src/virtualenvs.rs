@@ -112,6 +112,12 @@ fn list_versions(path: std::path::PathBuf) -> Result<Vec<String>, Error> {
     Ok(std::fs::read_dir(path)?
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
+        .filter(|version| {
+            version
+                .file_type()
+                .expect("Could not read file type.")
+                .is_dir()
+        })
         .map(|version| {
             version
                 .file_name()
