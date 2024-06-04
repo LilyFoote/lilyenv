@@ -131,7 +131,19 @@ pub fn print_project_versions(project: String) -> Result<(), Error> {
 
 pub fn print_all_versions() -> Result<(), Error> {
     let projects = virtualenvs_dir();
-    for project in std::fs::read_dir(projects)? {
+    let projects = match std::fs::read_dir(projects) {
+        Ok(projects) => projects,
+        Err(err) => match err.kind() {
+            std::io::ErrorKind::NotFound => {
+                println!("No virtualenvs created yet.");
+                return Ok(());
+            }
+            _ => {
+                return Err(err)?;
+            }
+        },
+    };
+    for project in projects {
         let project = project?;
         let versions = list_versions(project.path())?;
         println!(
