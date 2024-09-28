@@ -14,6 +14,7 @@ pub struct Version {
     pub major: u8,
     pub minor: u8,
     pub bugfix: Option<u8>,
+    pub debug: bool,
 }
 
 impl Version {
@@ -24,6 +25,7 @@ impl Version {
             self.interpreter == other.interpreter
                 && self.major == other.major
                 && self.minor == other.minor
+                && self.debug == other.debug
                 && other.bugfix.is_none()
         }
     }
@@ -35,9 +37,17 @@ impl std::fmt::Display for Version {
             Interpreter::CPython => "",
             Interpreter::PyPy => "pypy",
         };
-        match self.bugfix {
-            Some(bugfix) => write!(f, "{}{}.{}.{}", prefix, self.major, self.minor, bugfix),
-            None => write!(f, "{}{}.{}", prefix, self.major, self.minor),
+        match (self.bugfix, self.debug) {
+            (Some(bugfix), true) => write!(
+                f,
+                "{}{}.{}.{}-debug",
+                prefix, self.major, self.minor, bugfix
+            ),
+            (Some(bugfix), false) => {
+                write!(f, "{}{}.{}.{}", prefix, self.major, self.minor, bugfix)
+            }
+            (None, true) => write!(f, "{}{}.{}-debug", prefix, self.major, self.minor),
+            (None, false) => write!(f, "{}{}.{}", prefix, self.major, self.minor),
         }
     }
 }
@@ -60,6 +70,7 @@ fn parse_version(version: &str) -> nom::IResult<&str, Version> {
     let (rest, interpreter) = nom::combinator::opt(tag("pypy"))(version)?;
     let (rest, (major, minor)) = separated_pair(u8, tag("."), u8)(rest)?;
     let (rest, bugfix) = nom::combinator::opt(nom::sequence::preceded(tag("."), u8))(rest)?;
+    let (rest, debug) = nom::combinator::opt(tag("-debug"))(rest)?;
     let interpreter = match interpreter {
         Some(_) => Interpreter::PyPy,
         None => Interpreter::CPython,
@@ -71,6 +82,7 @@ fn parse_version(version: &str) -> nom::IResult<&str, Version> {
             major,
             minor,
             bugfix,
+            debug: debug.is_some(),
         },
     ))
 }
@@ -78,9 +90,13 @@ fn parse_version(version: &str) -> nom::IResult<&str, Version> {
 fn _parse_cpython_filename(filename: &str) -> nom::IResult<&str, (String, Version)> {
     use nom::bytes::complete::tag;
     let (input, _) = tag("cpython-")(filename)?;
-    let (input, version) = parse_version(input)?;
+    let (input, mut version) = parse_version(input)?;
     let (input, _) = tag("+")(input)?;
     let (input, release_tag) = nom::character::complete::digit1(input)?;
+    let (input, debug) = nom::combinator::opt(nom::bytes::complete::take_until("-debug"))(input)?;
+    if debug.is_some() {
+        version.debug = true;
+    }
     Ok((input, (release_tag.to_string(), version)))
 }
 
@@ -123,7 +139,8 @@ mod tests {
                 interpreter: Interpreter::CPython,
                 major: 3,
                 minor: 12,
-                bugfix: None
+                bugfix: None,
+                debug: false,
             }
         );
 
@@ -134,6 +151,7 @@ mod tests {
                 major: 3,
                 minor: 12,
                 bugfix: Some(1),
+                debug: false,
             }
         );
 
@@ -143,7 +161,8 @@ mod tests {
                 interpreter: Interpreter::PyPy,
                 major: 3,
                 minor: 10,
-                bugfix: None
+                bugfix: None,
+                debug: false,
             }
         );
 
@@ -153,7 +172,52 @@ mod tests {
                 interpreter: Interpreter::PyPy,
                 major: 3,
                 minor: 10,
-                bugfix: Some(4)
+                bugfix: Some(4),
+                debug: false,
+            }
+        );
+
+        assert_eq!(
+            "3.12-debug".parse::<Version>().unwrap(),
+            Version {
+                interpreter: Interpreter::CPython,
+                major: 3,
+                minor: 12,
+                bugfix: None,
+                debug: true,
+            }
+        );
+
+        assert_eq!(
+            "3.12.1-debug".parse::<Version>().unwrap(),
+            Version {
+                interpreter: Interpreter::CPython,
+                major: 3,
+                minor: 12,
+                bugfix: Some(1),
+                debug: true,
+            }
+        );
+
+        assert_eq!(
+            "pypy3.10-debug".parse::<Version>().unwrap(),
+            Version {
+                interpreter: Interpreter::PyPy,
+                major: 3,
+                minor: 10,
+                bugfix: None,
+                debug: true,
+            }
+        );
+
+        assert_eq!(
+            "pypy3.10.4-debug".parse::<Version>().unwrap(),
+            Version {
+                interpreter: Interpreter::PyPy,
+                major: 3,
+                minor: 10,
+                bugfix: Some(4),
+                debug: true,
             }
         );
     }
@@ -207,7 +271,25 @@ mod tests {
                 interpreter: Interpreter::CPython,
                 major: 3,
                 minor: 10,
-                bugfix: Some(13)
+                bugfix: Some(13),
+                debug: false,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_cpython_filename_debug() {
+        let filename = "cpython-3.11.9+20240415-x86_64_v3-unknown-linux-gnu-debug-full.tar.zst";
+        let (release_tag, version) = parse_cpython_filename(filename).unwrap();
+        assert_eq!(release_tag, "20240415");
+        assert_eq!(
+            version,
+            Version {
+                interpreter: Interpreter::CPython,
+                major: 3,
+                minor: 11,
+                bugfix: Some(9),
+                debug: true,
             }
         );
     }
@@ -224,7 +306,8 @@ mod tests {
                 interpreter: Interpreter::PyPy,
                 major: 3,
                 minor: 10,
-                bugfix: None
+                bugfix: None,
+                debug: false,
             }
         );
     }

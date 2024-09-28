@@ -9,6 +9,7 @@ pub struct Python {
     pub url: Url,
     pub version: Version,
     pub release_tag: String,
+    pub debug: bool,
 }
 
 pub async fn cpython_releases() -> Result<Vec<Python>, Error> {
@@ -32,7 +33,6 @@ pub async fn cpython_releases() -> Result<Vec<Python>, Error> {
         .flat_map(|release| release.assets)
         .filter(|asset| !asset.name.ends_with(".sha256"))
         .filter(|asset| asset.name.contains(CURRENT_PLATFORM))
-        .filter(|asset| asset.name.contains("install_only"))
         .map(|asset| {
             let (release_tag, version) = parse_cpython_filename(&asset.name)?;
             Ok(Python {
@@ -40,6 +40,7 @@ pub async fn cpython_releases() -> Result<Vec<Python>, Error> {
                 url: asset.browser_download_url,
                 version,
                 release_tag,
+                debug: version.debug,
             })
         })
         .collect()
@@ -81,6 +82,7 @@ pub fn pypy_releases() -> Result<Vec<Python>, Error> {
                 url: Url::parse(url)?,
                 version,
                 release_tag,
+                debug: false,
             })
         })
         .collect()

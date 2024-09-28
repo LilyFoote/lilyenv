@@ -1,3 +1,12 @@
+# 1.2.0
+
+* Support installing CPython debug builds.
+
+# 1.1.2
+
+* Improve UX of `lilyenv list` when no virtualenvs exist yet.
+* Omit metadata file `directory` from `lilyenv list` output.
+
 # 1.1.1
 
 * Fix paths in `sysconfig` and `pkgconfig` to match the interpreter's location after being downloaded.

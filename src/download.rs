@@ -8,6 +8,7 @@ use std::fs::File;
 use std::path::Path;
 use tar::Archive;
 use url::Url;
+use zstd::stream::read::Decoder as ZstDecoder;
 
 pub fn download_python(version: &Version, upgrade: bool) -> Result<(), Error> {
     match version.interpreter {
@@ -56,10 +57,18 @@ fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
         }
     };
     let path = downloads.join(python.name);
+    eprintln!("{path:?}");
     if upgrade || !path.exists() {
         download_file(python.url, &path)?;
     }
-    extract_tar_gz(&path, &python_dir)?;
+    match python.debug {
+        false => extract_tar_gz(&path, &python_dir)?,
+        true => {
+            extract_tar_zst(&path, &python_dir)?;
+            eprintln!("{python_dir:?}");
+            move_install(&python_dir)?;
+        }
+    };
     fixup_sysconfig_paths(&python_dir)?;
     Ok(())
 }
@@ -104,6 +113,14 @@ fn download_file(url: Url, target: &Path) -> Result<(), Error> {
 fn extract_tar_gz(source: &Path, target: &Path) -> Result<(), std::io::Error> {
     let tar_gz = File::open(source)?;
     let tar = GzDecoder::new(tar_gz);
+    let mut archive = Archive::new(tar);
+    archive.unpack(target)?;
+    Ok(())
+}
+
+fn extract_tar_zst(source: &Path, target: &Path) -> Result<(), std::io::Error> {
+    let tar_zst = File::open(source)?;
+    let tar = ZstDecoder::new(tar_zst)?;
     let mut archive = Archive::new(tar);
     archive.unpack(target)?;
     Ok(())
@@ -156,5 +173,15 @@ fn fixup_sysconfig_paths(python_dir: &Path) -> Result<(), Error> {
         let data = data.replace("=/install", &format!("={}", install_dir));
         std::fs::write(&path, data)?;
     }
+    Ok(())
+}
+
+fn move_install(python_dir: &Path) -> Result<(), std::io::Error> {
+    let temp = python_dir.join("temp");
+    let python_dir = python_dir.join("python");
+    let install = python_dir.join("install");
+    std::fs::rename(&install, &temp)?;
+    std::fs::remove_dir_all(&python_dir)?;
+    std::fs::rename(&temp, &python_dir)?;
     Ok(())
 }
