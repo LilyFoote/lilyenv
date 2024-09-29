@@ -57,7 +57,6 @@ fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
         }
     };
     let path = downloads.join(python.name);
-    eprintln!("{path:?}");
     if upgrade || !path.exists() {
         download_file(python.url, &path)?;
     }
@@ -65,7 +64,6 @@ fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
         false => extract_tar_gz(&path, &python_dir)?,
         true => {
             extract_tar_zst(&path, &python_dir)?;
-            eprintln!("{python_dir:?}");
             move_install(&python_dir)?;
         }
     };
