@@ -9,12 +9,21 @@ pub enum Interpreter {
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub enum PreRelease {
+    None,
+    Alpha(u8),
+    Beta(u8),
+    RC(u8),
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Version {
     pub interpreter: Interpreter,
     pub major: u8,
     pub minor: u8,
     pub bugfix: Option<u8>,
     pub debug: bool,
+    pub prerelease: PreRelease,
 }
 
 impl Version {
@@ -27,6 +36,8 @@ impl Version {
                 && self.minor == other.minor
                 && self.debug == other.debug
                 && other.bugfix.is_none()
+                && self.prerelease == PreRelease::None
+                && other.prerelease == PreRelease::None
         }
     }
 }
@@ -37,17 +48,19 @@ impl std::fmt::Display for Version {
             Interpreter::CPython => "",
             Interpreter::PyPy => "pypy",
         };
-        match (self.bugfix, self.debug) {
-            (Some(bugfix), true) => write!(
-                f,
-                "{}{}.{}.{}-debug",
-                prefix, self.major, self.minor, bugfix
-            ),
-            (Some(bugfix), false) => {
-                write!(f, "{}{}.{}.{}", prefix, self.major, self.minor, bugfix)
-            }
-            (None, true) => write!(f, "{}{}.{}-debug", prefix, self.major, self.minor),
-            (None, false) => write!(f, "{}{}.{}", prefix, self.major, self.minor),
+        let prerelease = match self.prerelease {
+            PreRelease::None => "".to_string(),
+            PreRelease::Alpha(n) => format!("a{n}"),
+            PreRelease::Beta(n) => format!("b{n}"),
+            PreRelease::RC(n) => format!("rc{n}"),
+        };
+        let debug = match self.debug {
+            false => "",
+            true => "-debug",
+        };
+        match self.bugfix {
+            Some(bugfix) => write!(f, "{}{}.{}.{}{}{}", prefix, self.major, self.minor, bugfix, prerelease, debug),
+            None => write!(f, "{}{}.{}{}", prefix, self.major, self.minor, debug),
         }
     }
 }
@@ -63,6 +76,24 @@ impl std::str::FromStr for Version {
     }
 }
 
+fn parse_prerelease(input: &str) -> nom::IResult<&str, PreRelease> {
+    use nom::branch::alt;
+    use nom::bytes::complete::tag;
+    use nom::character::complete::u8;
+    let (rest, prerelease_type) = nom::combinator::opt(alt((tag("a"), tag("b"), tag("rc"))))(input)?;
+    let prerelease_type = match prerelease_type {
+        None => return Ok((rest, PreRelease::None)),
+        Some(prerelease_type) => prerelease_type,
+    };
+    let (rest, value) = u8(rest)?;
+    match prerelease_type {
+        "a" => Ok((rest, PreRelease::Alpha(value))),
+        "b" => Ok((rest, PreRelease::Beta(value))),
+        "rc" => Ok((rest, PreRelease::RC(value))),
+        _ => unreachable!()
+    }
+}
+
 fn parse_version(version: &str) -> nom::IResult<&str, Version> {
     use nom::bytes::complete::tag;
     use nom::character::complete::u8;
@@ -70,6 +101,7 @@ fn parse_version(version: &str) -> nom::IResult<&str, Version> {
     let (rest, interpreter) = nom::combinator::opt(tag("pypy"))(version)?;
     let (rest, (major, minor)) = separated_pair(u8, tag("."), u8)(rest)?;
     let (rest, bugfix) = nom::combinator::opt(nom::sequence::preceded(tag("."), u8))(rest)?;
+    let (rest, prerelease) = parse_prerelease(rest)?;
     let (rest, debug) = nom::combinator::opt(tag("-debug"))(rest)?;
     let interpreter = match interpreter {
         Some(_) => Interpreter::PyPy,
@@ -83,6 +115,7 @@ fn parse_version(version: &str) -> nom::IResult<&str, Version> {
             minor,
             bugfix,
             debug: debug.is_some(),
+            prerelease,
         },
     ))
 }
@@ -141,6 +174,7 @@ mod tests {
                 minor: 12,
                 bugfix: None,
                 debug: false,
+                prerelease: PreRelease::None,
             }
         );
 
@@ -152,6 +186,7 @@ mod tests {
                 minor: 12,
                 bugfix: Some(1),
                 debug: false,
+                prerelease: PreRelease::None,
             }
         );
 
@@ -163,6 +198,7 @@ mod tests {
                 minor: 10,
                 bugfix: None,
                 debug: false,
+                prerelease: PreRelease::None,
             }
         );
 
@@ -174,6 +210,7 @@ mod tests {
                 minor: 10,
                 bugfix: Some(4),
                 debug: false,
+                prerelease: PreRelease::None,
             }
         );
 
@@ -185,6 +222,7 @@ mod tests {
                 minor: 12,
                 bugfix: None,
                 debug: true,
+                prerelease: PreRelease::None,
             }
         );
 
@@ -196,6 +234,7 @@ mod tests {
                 minor: 12,
                 bugfix: Some(1),
                 debug: true,
+                prerelease: PreRelease::None,
             }
         );
 
@@ -207,6 +246,7 @@ mod tests {
                 minor: 10,
                 bugfix: None,
                 debug: true,
+                prerelease: PreRelease::None,
             }
         );
 
@@ -218,8 +258,10 @@ mod tests {
                 minor: 10,
                 bugfix: Some(4),
                 debug: true,
+                prerelease: PreRelease::None,
             }
         );
+
     }
 
     #[test]
@@ -273,6 +315,7 @@ mod tests {
                 minor: 10,
                 bugfix: Some(13),
                 debug: false,
+                prerelease: PreRelease::None,
             }
         );
     }
@@ -290,6 +333,25 @@ mod tests {
                 minor: 11,
                 bugfix: Some(9),
                 debug: true,
+                prerelease: PreRelease::None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_cpython_release_candidate() {
+        let filename = "cpython-3.13.0rc2+20240909-x86_64-unknown-linux-gnu-debug-full.tar.zst";
+        let (release_tag, version) = parse_cpython_filename(filename).unwrap();
+        assert_eq!(release_tag, "20240909");
+        assert_eq!(
+            version,
+            Version {
+                interpreter: Interpreter::CPython,
+                major: 3,
+                minor: 13,
+                bugfix: Some(0),
+                debug: true,
+                prerelease: PreRelease::RC(2),
             }
         );
     }
@@ -308,6 +370,7 @@ mod tests {
                 minor: 10,
                 bugfix: None,
                 debug: false,
+                prerelease: PreRelease::None,
             }
         );
     }
