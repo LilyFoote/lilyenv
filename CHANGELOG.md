@@ -1,3 +1,7 @@
+# 1.3.0
+
+* Support installing release candidate CPython builds.
+
 # 1.2.0
 
 * Support installing CPython debug builds.
