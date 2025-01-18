@@ -1,3 +1,9 @@
+# 1.4.0
+
+* Support freethreaded CPython installs. `lilyenv activate <project> 3.13t`
+* Support Python 3.13.
+* Allow setting the shell (bash, zsh or fish) on a per-project basis in addition to the existing global config option.
+
 # 1.3.0
 
 * Support installing release candidate CPython builds.

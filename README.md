@@ -13,7 +13,7 @@ Lilyenv is written in Rust and can be installed using `cargo install lilyenv`.
 * `lilyenv upgrade <version>` will upgrade the python interpreter to the latest bugfix release.
 * `lilyenv set-project-directory <project> <default_directory>?` will set the default directory for the `<project>`. If `<default_directory`> is omitted the current directory is used.
 * `lilyenv unset-project-directory <project>` will unset the default directory for the `<project>`.
-* `lilyenv set-shell` allows explicitly setting the shell lilyenv uses when activating a virtualenv.
+* `lilyenv set-shell <project>?` allows explicitly setting the shell lilyenv uses when activating a virtualenv. If `<project>` is provided, the shell is only set for that project.
 * `lilyenv shell-config` shows shell-specific configuration information. This can be used to set a custom prompt.
 * `lilyenv virtualenv <project> <version>` will create a virtualenv for a project using the given python version.
 * `lilyenv remove-virtualenv <project> <version>` will delete the specified virtualenv.
