@@ -11,12 +11,7 @@ pub fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> 
     }
     let next = std::fs::read_dir(&python)?
         .next()
-        .unwrap_or_else(|| {
-            panic!(
-                "Expected subdirectory missing from downloaded python at {:?}.",
-                &python
-            )
-        })?
+        .expect("Downloaded python at {python:?} should not be empty.")?
         .path();
     let python_executable = next.join("bin/python3");
     let virtualenv = virtualenv_dir(project, version);
