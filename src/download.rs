@@ -56,9 +56,9 @@ fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
             return Err(Error::VersionNotFound(version.to_string()));
         }
     };
-    let path = downloads.join(python.name);
+    let path = downloads.join(&python.name);
     if upgrade || !path.exists() {
-        download_file(python.url, &path)?;
+        download_file(python.url.clone(), &path)?;
     }
     match python.debug {
         false => extract_tar_gz(&path, &python_dir)?,
