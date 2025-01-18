@@ -127,7 +127,7 @@ fn _parse_cpython_filename(filename: &str) -> nom::IResult<&str, (String, Versio
     let (input, mut version) = parse_version(input)?;
     let (input, _) = tag("+")(input)?;
     let (input, release_tag) = nom::character::complete::digit1(input)?;
-    let (input, debug) = nom::combinator::opt(nom::bytes::complete::take_until("-debug"))(input)?;
+    let (input, debug) = nom::combinator::opt(nom::bytes::complete::take_until("debug"))(input)?;
     if debug.is_some() {
         version.debug = true;
     }
