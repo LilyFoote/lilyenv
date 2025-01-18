@@ -37,3 +37,7 @@ pub fn virtualenv_dir(project: &str, version: &Version) -> std::path::PathBuf {
 pub fn project_file(project: &str) -> std::path::PathBuf {
     project_dir(project).join("directory")
 }
+
+pub fn is_downloaded(python_dir: &std::path::Path) -> std::io::Result<bool> {
+    Ok(python_dir.exists() && std::fs::read_dir(&python_dir)?.next().is_some())
+}

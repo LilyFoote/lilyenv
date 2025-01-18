@@ -1,4 +1,4 @@
-use crate::directories::{downloads_dir, python_dir};
+use crate::directories::{downloads_dir, is_downloaded, python_dir};
 use crate::error::Error;
 use crate::releases::{cpython_releases, pypy_releases};
 use crate::version::{Interpreter, Version};
@@ -36,7 +36,7 @@ pub fn print_available_downloads() -> Result<(), Error> {
 
 fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
     let python_dir = python_dir(version);
-    if !upgrade && python_dir.exists() {
+    if !upgrade && is_downloaded(&python_dir)? {
         return Ok(());
     }
 
