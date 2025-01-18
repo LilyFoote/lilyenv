@@ -60,7 +60,7 @@ fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
     if upgrade || !path.exists() {
         download_file(python.url.clone(), &path)?;
     }
-    match python.debug {
+    match python.debug || python.freethreaded {
         false => extract_tar_gz(&path, &python_dir)?,
         true => {
             extract_tar_zst(&path, &python_dir)?;

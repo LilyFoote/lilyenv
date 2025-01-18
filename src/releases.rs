@@ -10,6 +10,7 @@ pub struct Python {
     pub version: Version,
     pub release_tag: String,
     pub debug: bool,
+    pub freethreaded: bool,
 }
 
 pub async fn cpython_releases() -> Result<Vec<Python>, Error> {
@@ -41,6 +42,7 @@ pub async fn cpython_releases() -> Result<Vec<Python>, Error> {
                 version,
                 release_tag,
                 debug: version.debug,
+                freethreaded: version.freethreaded,
             })
         })
         .collect()
@@ -83,6 +85,7 @@ pub fn pypy_releases() -> Result<Vec<Python>, Error> {
                 version,
                 release_tag,
                 debug: false,
+                freethreaded: false,
             })
         })
         .collect()
