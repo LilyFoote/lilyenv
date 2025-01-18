@@ -1061,6 +1061,7 @@ dependencies = [
  "reqwest",
  "scraper",
  "tar",
+ "thiserror",
  "tokio",
  "url",
  "zstd",
