@@ -80,7 +80,8 @@ fn parse_prerelease(input: &str) -> nom::IResult<&str, PreRelease> {
     use nom::branch::alt;
     use nom::bytes::complete::tag;
     use nom::character::complete::u8;
-    let (rest, prerelease_type) = nom::combinator::opt(alt((tag("a"), tag("b"), tag("rc"))))(input)?;
+    let (rest, prerelease_type) =
+        nom::combinator::opt(alt((tag("a"), tag("b"), tag("rc"))))(input)?;
     let prerelease_type = match prerelease_type {
         None => return Ok((rest, PreRelease::None)),
         Some(prerelease_type) => prerelease_type,
@@ -90,7 +91,7 @@ fn parse_prerelease(input: &str) -> nom::IResult<&str, PreRelease> {
         "a" => Ok((rest, PreRelease::Alpha(value))),
         "b" => Ok((rest, PreRelease::Beta(value))),
         "rc" => Ok((rest, PreRelease::RC(value))),
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
@@ -261,7 +262,6 @@ mod tests {
                 prerelease: PreRelease::None,
             }
         );
-
     }
 
     #[test]
