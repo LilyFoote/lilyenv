@@ -1,4 +1,6 @@
-use crate::directories::{project_dir, project_file, python_dir, virtualenv_dir, virtualenvs_dir};
+use crate::directories::{
+    is_downloaded, project_dir, project_file, python_dir, virtualenv_dir, virtualenvs_dir,
+};
 use crate::download::download_python;
 use crate::error::Error;
 use crate::shell::get_shell;
@@ -6,17 +8,12 @@ use crate::version::Version;
 
 pub fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
     let python = python_dir(version);
-    if !python.exists() {
+    if !is_downloaded(&python)? {
         download_python(version, false)?;
     }
     let next = std::fs::read_dir(&python)?
         .next()
-        .unwrap_or_else(|| {
-            panic!(
-                "Expected subdirectory missing from downloaded python at {:?}.",
-                &python
-            )
-        })?
+        .expect("Downloaded python at {python:?} should not be empty.")?
         .path();
     let python_executable = next.join("bin/python3");
     let virtualenv = virtualenv_dir(project, version);

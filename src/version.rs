@@ -23,6 +23,7 @@ pub struct Version {
     pub minor: u8,
     pub bugfix: Option<u8>,
     pub debug: bool,
+    pub freethreaded: bool,
     pub prerelease: PreRelease,
 }
 
@@ -35,6 +36,7 @@ impl Version {
                 && self.major == other.major
                 && self.minor == other.minor
                 && self.debug == other.debug
+                && self.freethreaded == other.freethreaded
                 && other.bugfix.is_none()
                 && self.prerelease == PreRelease::None
                 && other.prerelease == PreRelease::None
@@ -58,9 +60,21 @@ impl std::fmt::Display for Version {
             false => "",
             true => "-debug",
         };
+        let freethreaded = match self.freethreaded {
+            false => "",
+            true => "t",
+        };
         match self.bugfix {
-            Some(bugfix) => write!(f, "{}{}.{}.{}{}{}", prefix, self.major, self.minor, bugfix, prerelease, debug),
-            None => write!(f, "{}{}.{}{}", prefix, self.major, self.minor, debug),
+            Some(bugfix) => write!(
+                f,
+                "{}{}.{}.{}{}{}{}",
+                prefix, self.major, self.minor, bugfix, prerelease, freethreaded, debug
+            ),
+            None => write!(
+                f,
+                "{}{}.{}{}{}",
+                prefix, self.major, self.minor, freethreaded, debug
+            ),
         }
     }
 }
@@ -80,7 +94,8 @@ fn parse_prerelease(input: &str) -> nom::IResult<&str, PreRelease> {
     use nom::branch::alt;
     use nom::bytes::complete::tag;
     use nom::character::complete::u8;
-    let (rest, prerelease_type) = nom::combinator::opt(alt((tag("a"), tag("b"), tag("rc"))))(input)?;
+    let (rest, prerelease_type) =
+        nom::combinator::opt(alt((tag("a"), tag("b"), tag("rc"))))(input)?;
     let prerelease_type = match prerelease_type {
         None => return Ok((rest, PreRelease::None)),
         Some(prerelease_type) => prerelease_type,
@@ -90,7 +105,7 @@ fn parse_prerelease(input: &str) -> nom::IResult<&str, PreRelease> {
         "a" => Ok((rest, PreRelease::Alpha(value))),
         "b" => Ok((rest, PreRelease::Beta(value))),
         "rc" => Ok((rest, PreRelease::RC(value))),
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
@@ -102,6 +117,7 @@ fn parse_version(version: &str) -> nom::IResult<&str, Version> {
     let (rest, (major, minor)) = separated_pair(u8, tag("."), u8)(rest)?;
     let (rest, bugfix) = nom::combinator::opt(nom::sequence::preceded(tag("."), u8))(rest)?;
     let (rest, prerelease) = parse_prerelease(rest)?;
+    let (rest, freethreaded) = nom::combinator::opt(tag("t"))(rest)?;
     let (rest, debug) = nom::combinator::opt(tag("-debug"))(rest)?;
     let interpreter = match interpreter {
         Some(_) => Interpreter::PyPy,
@@ -115,6 +131,7 @@ fn parse_version(version: &str) -> nom::IResult<&str, Version> {
             minor,
             bugfix,
             debug: debug.is_some(),
+            freethreaded: freethreaded.is_some(),
             prerelease,
         },
     ))
@@ -126,7 +143,12 @@ fn _parse_cpython_filename(filename: &str) -> nom::IResult<&str, (String, Versio
     let (input, mut version) = parse_version(input)?;
     let (input, _) = tag("+")(input)?;
     let (input, release_tag) = nom::character::complete::digit1(input)?;
-    let (input, debug) = nom::combinator::opt(nom::bytes::complete::take_until("-debug"))(input)?;
+    let (input, freethreaded) =
+        nom::combinator::opt(nom::bytes::complete::take_until("freethreaded"))(input)?;
+    let (input, debug) = nom::combinator::opt(nom::bytes::complete::take_until("debug"))(input)?;
+    if freethreaded.is_some() {
+        version.freethreaded = true;
+    }
     if debug.is_some() {
         version.debug = true;
     }
@@ -174,6 +196,7 @@ mod tests {
                 minor: 12,
                 bugfix: None,
                 debug: false,
+                freethreaded: false,
                 prerelease: PreRelease::None,
             }
         );
@@ -186,6 +209,7 @@ mod tests {
                 minor: 12,
                 bugfix: Some(1),
                 debug: false,
+                freethreaded: false,
                 prerelease: PreRelease::None,
             }
         );
@@ -198,6 +222,7 @@ mod tests {
                 minor: 10,
                 bugfix: None,
                 debug: false,
+                freethreaded: false,
                 prerelease: PreRelease::None,
             }
         );
@@ -210,6 +235,7 @@ mod tests {
                 minor: 10,
                 bugfix: Some(4),
                 debug: false,
+                freethreaded: false,
                 prerelease: PreRelease::None,
             }
         );
@@ -222,6 +248,7 @@ mod tests {
                 minor: 12,
                 bugfix: None,
                 debug: true,
+                freethreaded: false,
                 prerelease: PreRelease::None,
             }
         );
@@ -234,6 +261,7 @@ mod tests {
                 minor: 12,
                 bugfix: Some(1),
                 debug: true,
+                freethreaded: false,
                 prerelease: PreRelease::None,
             }
         );
@@ -246,6 +274,7 @@ mod tests {
                 minor: 10,
                 bugfix: None,
                 debug: true,
+                freethreaded: false,
                 prerelease: PreRelease::None,
             }
         );
@@ -258,10 +287,10 @@ mod tests {
                 minor: 10,
                 bugfix: Some(4),
                 debug: true,
+                freethreaded: false,
                 prerelease: PreRelease::None,
             }
         );
-
     }
 
     #[test]
@@ -315,6 +344,7 @@ mod tests {
                 minor: 10,
                 bugfix: Some(13),
                 debug: false,
+                freethreaded: false,
                 prerelease: PreRelease::None,
             }
         );
@@ -333,6 +363,7 @@ mod tests {
                 minor: 11,
                 bugfix: Some(9),
                 debug: true,
+                freethreaded: false,
                 prerelease: PreRelease::None,
             }
         );
@@ -351,7 +382,28 @@ mod tests {
                 minor: 13,
                 bugfix: Some(0),
                 debug: true,
+                freethreaded: false,
                 prerelease: PreRelease::RC(2),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_cpython_filename_freethreaded_debug() {
+        let filename =
+            "cpython-3.13.1+20250115-x86_64-unknown-linux-gnu-freethreaded+debug-full.tar.zst";
+        let (release_tag, version) = parse_cpython_filename(filename).unwrap();
+        assert_eq!(release_tag, "20250115");
+        assert_eq!(
+            version,
+            Version {
+                interpreter: Interpreter::CPython,
+                major: 3,
+                minor: 13,
+                bugfix: Some(1),
+                debug: true,
+                freethreaded: true,
+                prerelease: PreRelease::None,
             }
         );
     }
@@ -370,6 +422,7 @@ mod tests {
                 minor: 10,
                 bugfix: None,
                 debug: false,
+                freethreaded: false,
                 prerelease: PreRelease::None,
             }
         );
