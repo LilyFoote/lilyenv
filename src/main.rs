@@ -50,9 +50,12 @@ enum Commands {
     /// Download a specific Python version or list all Python versions available to download
     Download { version: Option<Version> },
     /// Explicitly set the shell for lilyenv to use
-    SetShell { shell: String },
+    SetShell {
+        shell: String,
+        project: Option<String>,
+    },
     /// Show information to include in a shell config file
-    ShellConfig,
+    ShellConfig { project: Option<String> },
 }
 
 fn run() -> Result<(), Error> {
@@ -77,8 +80,8 @@ fn run() -> Result<(), Error> {
         Commands::Activate { version, project } => {
             activate_virtualenv(&version, &project)?;
         }
-        Commands::SetShell { shell } => set_shell(&shell)?,
-        Commands::ShellConfig => print_shell_config()?,
+        Commands::SetShell { shell, project } => set_shell(&shell, project.as_deref())?,
+        Commands::ShellConfig { project } => print_shell_config(project.as_deref())?,
         Commands::List { project } => match project {
             Some(project) => print_project_versions(project)?,
             None => print_all_versions()?,

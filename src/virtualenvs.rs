@@ -67,7 +67,7 @@ pub fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error
     let path = std::env::var("PATH")?;
     let path = format!("{}:{path}", virtualenv.join("bin").display());
 
-    let mut shell = std::process::Command::new(get_shell()?);
+    let mut shell = std::process::Command::new(get_shell(Some(project))?);
     let shell = match project_directory(project)? {
         Some(directory) => shell.current_dir(directory),
         _ => &mut shell,
@@ -101,7 +101,7 @@ pub fn cd_site_packages(project: &str, version: &Version) -> Result<(), Error> {
         .path();
     let site_packages = next.join("site-packages");
 
-    let mut shell = std::process::Command::new(get_shell()?)
+    let mut shell = std::process::Command::new(get_shell(Some(project))?)
         .current_dir(site_packages)
         .spawn()?;
     shell.wait()?;

@@ -19,8 +19,11 @@ pub fn virtualenvs_dir() -> std::path::PathBuf {
     lilyenv_dir().data_local_dir().join("virtualenvs")
 }
 
-pub fn shell_file() -> std::path::PathBuf {
-    lilyenv_dir().data_local_dir().join("shell")
+pub fn shell_file(project: Option<&str>) -> std::path::PathBuf {
+    match project {
+        None => lilyenv_dir().data_local_dir().join("shell"),
+        Some(project) => project_dir(project).join("shell"),
+    }
 }
 
 pub fn project_dir(project: &str) -> std::path::PathBuf {
