@@ -37,7 +37,14 @@ pub fn remove_project(project: &str) -> Result<(), Error> {
 }
 
 pub fn set_project_directory(project: &str, default_directory: &str) -> Result<(), Error> {
-    std::fs::write(project_file(project), default_directory)?;
+    let target = project_file(project);
+    let directory = std::path::Path::new(default_directory).canonicalize()?;
+    std::fs::write(
+        target,
+        directory
+            .to_str()
+            .expect("Default directory should be valid utf-8"),
+    )?;
     Ok(())
 }
 

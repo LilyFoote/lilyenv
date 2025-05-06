@@ -42,7 +42,8 @@ enum Commands {
     /// Set the default directory for a project
     SetProjectDirectory {
         project: String,
-        default_directory: Option<String>,
+        #[arg(default_value = ".")]
+        default_directory: String,
     },
     /// Unset the default directory for a project
     UnsetProjectDirectory { project: String },
@@ -103,13 +104,6 @@ fn run() -> Result<(), Error> {
             project,
             default_directory,
         } => {
-            let default_directory = match default_directory {
-                Some(default_directory) => default_directory,
-                None => std::env::current_dir()?
-                    .to_str()
-                    .expect("The current directory should be valid unicode.")
-                    .to_string(),
-            };
             set_project_directory(&project, &default_directory)?;
         }
         Commands::UnsetProjectDirectory { project } => unset_project_directory(&project)?,
