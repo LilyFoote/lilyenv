@@ -27,7 +27,12 @@ struct Cli {
 #[derive(Subcommand, Debug, Clone)]
 enum Commands {
     /// Activate a virtualenv given a Project string and a Python version
-    Activate { project: String, version: Version },
+    Activate {
+        project: String,
+        version: Version,
+        #[arg(long)]
+        no_cd: bool,
+    },
     /// List all available virtualenvs, or those for the given Project
     List { project: Option<String> },
     /// Upgrade a Python version to the latest bugfix release
@@ -77,8 +82,12 @@ fn run() -> Result<(), Error> {
         Commands::RemoveProject { project } => {
             remove_project(&project)?;
         }
-        Commands::Activate { version, project } => {
-            activate_virtualenv(&version, &project)?;
+        Commands::Activate {
+            version,
+            project,
+            no_cd,
+        } => {
+            activate_virtualenv(&version, &project, no_cd)?;
         }
         Commands::SetShell { shell, project } => set_shell(&shell, project.as_deref())?,
         Commands::ShellConfig { project } => print_shell_config(project.as_deref())?,

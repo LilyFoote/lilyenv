@@ -56,7 +56,7 @@ fn project_directory(project: &str) -> Result<Option<String>, Error> {
     }
 }
 
-pub fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
+pub fn activate_virtualenv(version: &Version, project: &str, no_cd: bool) -> Result<(), Error> {
     let virtualenv = virtualenv_dir(project, version);
     if !virtualenv.exists() {
         create_virtualenv(version, project)?
@@ -65,9 +65,13 @@ pub fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error
     let path = format!("{}:{path}", virtualenv.join("bin").display());
 
     let mut shell = std::process::Command::new(get_shell(Some(project))?);
-    let shell = match project_directory(project)? {
-        Some(directory) => shell.current_dir(directory),
-        _ => &mut shell,
+    let shell = if no_cd {
+        &mut shell
+    } else {
+        match project_directory(project)? {
+            Some(directory) => shell.current_dir(directory),
+            _ => &mut shell,
+        }
     };
     let python = python_dir(version).join("python");
     let mut shell = shell
