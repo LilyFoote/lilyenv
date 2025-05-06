@@ -27,7 +27,14 @@ struct Cli {
 #[derive(Subcommand, Debug, Clone)]
 enum Commands {
     /// Activate a virtualenv given a Project string and a Python version
-    Activate { project: String, version: Version },
+    Activate {
+        project: String,
+        version: Version,
+        #[arg(long)]
+        no_cd: bool,
+        #[arg(short, long, default_value=None, default_missing_value=".", num_args=0..=1)]
+        directory: Option<String>,
+    },
     /// List all available virtualenvs, or those for the given Project
     List { project: Option<String> },
     /// Upgrade a Python version to the latest bugfix release
@@ -37,12 +44,18 @@ enum Commands {
     /// Set the default directory for a project
     SetProjectDirectory {
         project: String,
-        default_directory: Option<String>,
+        #[arg(default_value = ".")]
+        default_directory: String,
     },
     /// Unset the default directory for a project
     UnsetProjectDirectory { project: String },
     /// Create a virtualenv given a Project string and a Python version
-    Virtualenv { project: String, version: Version },
+    Virtualenv {
+        project: String,
+        version: Version,
+        #[arg(short, long, default_value=None, default_missing_value=".", num_args=0..=1)]
+        directory: Option<String>,
+    },
     /// Remove a virtualenv
     RemoveVirtualenv { project: String, version: Version },
     /// Remove all virtualenvs for a project
@@ -68,8 +81,12 @@ fn run() -> Result<(), Error> {
         } => {
             download_python(&version, false)?;
         }
-        Commands::Virtualenv { version, project } => {
-            create_virtualenv(&version, &project)?;
+        Commands::Virtualenv {
+            version,
+            project,
+            directory,
+        } => {
+            create_virtualenv(&version, &project, directory)?;
         }
         Commands::RemoveVirtualenv { project, version } => {
             remove_virtualenv(&project, &version)?;
@@ -77,8 +94,13 @@ fn run() -> Result<(), Error> {
         Commands::RemoveProject { project } => {
             remove_project(&project)?;
         }
-        Commands::Activate { version, project } => {
-            activate_virtualenv(&version, &project)?;
+        Commands::Activate {
+            version,
+            project,
+            no_cd,
+            directory,
+        } => {
+            activate_virtualenv(&version, &project, no_cd, directory)?;
         }
         Commands::SetShell { shell, project } => set_shell(&shell, project.as_deref())?,
         Commands::ShellConfig { project } => print_shell_config(project.as_deref())?,
@@ -94,13 +116,6 @@ fn run() -> Result<(), Error> {
             project,
             default_directory,
         } => {
-            let default_directory = match default_directory {
-                Some(default_directory) => default_directory,
-                None => std::env::current_dir()?
-                    .to_str()
-                    .expect("The current directory should be valid unicode.")
-                    .to_string(),
-            };
             set_project_directory(&project, &default_directory)?;
         }
         Commands::UnsetProjectDirectory { project } => unset_project_directory(&project)?,

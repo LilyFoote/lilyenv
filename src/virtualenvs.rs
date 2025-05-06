@@ -6,7 +6,11 @@ use crate::error::Error;
 use crate::shell::get_shell;
 use crate::version::Version;
 
-pub fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
+pub fn create_virtualenv(
+    version: &Version,
+    project: &str,
+    directory: Option<String>,
+) -> Result<(), Error> {
     let python = python_dir(version);
     if !is_downloaded(&python)? {
         download_python(version, false)?;
@@ -22,6 +26,9 @@ pub fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> 
         .arg("venv")
         .arg(virtualenv)
         .output()?;
+    if let Some(directory) = directory {
+        set_project_directory(project, &directory)?
+    }
     Ok(())
 }
 
@@ -37,7 +44,14 @@ pub fn remove_project(project: &str) -> Result<(), Error> {
 }
 
 pub fn set_project_directory(project: &str, default_directory: &str) -> Result<(), Error> {
-    std::fs::write(project_file(project), default_directory)?;
+    let target = project_file(project);
+    let directory = std::path::Path::new(default_directory).canonicalize()?;
+    std::fs::write(
+        target,
+        directory
+            .to_str()
+            .expect("Default directory should be valid utf-8"),
+    )?;
     Ok(())
 }
 
@@ -56,18 +70,30 @@ fn project_directory(project: &str) -> Result<Option<String>, Error> {
     }
 }
 
-pub fn activate_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
+pub fn activate_virtualenv(
+    version: &Version,
+    project: &str,
+    no_cd: bool,
+    directory: Option<String>,
+) -> Result<(), Error> {
     let virtualenv = virtualenv_dir(project, version);
     if !virtualenv.exists() {
-        create_virtualenv(version, project)?
+        create_virtualenv(version, project, None)?
+    }
+    if let Some(directory) = directory {
+        set_project_directory(project, &directory)?
     }
     let path = std::env::var("PATH")?;
     let path = format!("{}:{path}", virtualenv.join("bin").display());
 
     let mut shell = std::process::Command::new(get_shell(Some(project))?);
-    let shell = match project_directory(project)? {
-        Some(directory) => shell.current_dir(directory),
-        _ => &mut shell,
+    let shell = if no_cd {
+        &mut shell
+    } else {
+        match project_directory(project)? {
+            Some(directory) => shell.current_dir(directory),
+            _ => &mut shell,
+        }
     };
     let python = python_dir(version).join("python");
     let mut shell = shell
