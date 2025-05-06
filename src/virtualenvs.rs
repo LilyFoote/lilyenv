@@ -63,10 +63,18 @@ fn project_directory(project: &str) -> Result<Option<String>, Error> {
     }
 }
 
-pub fn activate_virtualenv(version: &Version, project: &str, no_cd: bool) -> Result<(), Error> {
+pub fn activate_virtualenv(
+    version: &Version,
+    project: &str,
+    no_cd: bool,
+    directory: Option<String>,
+) -> Result<(), Error> {
     let virtualenv = virtualenv_dir(project, version);
     if !virtualenv.exists() {
         create_virtualenv(version, project)?
+    }
+    if let Some(directory) = directory {
+        set_project_directory(project, &directory)?
     }
     let path = std::env::var("PATH")?;
     let path = format!("{}:{path}", virtualenv.join("bin").display());

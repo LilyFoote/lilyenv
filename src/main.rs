@@ -32,6 +32,8 @@ enum Commands {
         version: Version,
         #[arg(long)]
         no_cd: bool,
+        #[arg(short, long, default_value=None, default_missing_value=".", num_args=0..=1)]
+        directory: Option<String>,
     },
     /// List all available virtualenvs, or those for the given Project
     List { project: Option<String> },
@@ -87,8 +89,9 @@ fn run() -> Result<(), Error> {
             version,
             project,
             no_cd,
+            directory,
         } => {
-            activate_virtualenv(&version, &project, no_cd)?;
+            activate_virtualenv(&version, &project, no_cd, directory)?;
         }
         Commands::SetShell { shell, project } => set_shell(&shell, project.as_deref())?,
         Commands::ShellConfig { project } => print_shell_config(project.as_deref())?,
