@@ -50,7 +50,12 @@ enum Commands {
     /// Unset the default directory for a project
     UnsetProjectDirectory { project: String },
     /// Create a virtualenv given a Project string and a Python version
-    Virtualenv { project: String, version: Version },
+    Virtualenv {
+        project: String,
+        version: Version,
+        #[arg(short, long, default_value=None, default_missing_value=".", num_args=0..=1)]
+        directory: Option<String>,
+    },
     /// Remove a virtualenv
     RemoveVirtualenv { project: String, version: Version },
     /// Remove all virtualenvs for a project
@@ -76,8 +81,12 @@ fn run() -> Result<(), Error> {
         } => {
             download_python(&version, false)?;
         }
-        Commands::Virtualenv { version, project } => {
-            create_virtualenv(&version, &project)?;
+        Commands::Virtualenv {
+            version,
+            project,
+            directory,
+        } => {
+            create_virtualenv(&version, &project, directory)?;
         }
         Commands::RemoveVirtualenv { project, version } => {
             remove_virtualenv(&project, &version)?;

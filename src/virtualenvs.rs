@@ -6,7 +6,11 @@ use crate::error::Error;
 use crate::shell::get_shell;
 use crate::version::Version;
 
-pub fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> {
+pub fn create_virtualenv(
+    version: &Version,
+    project: &str,
+    directory: Option<String>,
+) -> Result<(), Error> {
     let python = python_dir(version);
     if !is_downloaded(&python)? {
         download_python(version, false)?;
@@ -22,6 +26,9 @@ pub fn create_virtualenv(version: &Version, project: &str) -> Result<(), Error> 
         .arg("venv")
         .arg(virtualenv)
         .output()?;
+    if let Some(directory) = directory {
+        set_project_directory(project, &directory)?
+    }
     Ok(())
 }
 
@@ -71,7 +78,7 @@ pub fn activate_virtualenv(
 ) -> Result<(), Error> {
     let virtualenv = virtualenv_dir(project, version);
     if !virtualenv.exists() {
-        create_virtualenv(version, project)?
+        create_virtualenv(version, project, None)?
     }
     if let Some(directory) = directory {
         set_project_directory(project, &directory)?
