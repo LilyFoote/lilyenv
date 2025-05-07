@@ -12,7 +12,7 @@ use crate::error::Error;
 use crate::shell::{print_shell_config, set_shell};
 use crate::version::Version;
 use crate::virtualenvs::{
-    activate_virtualenv, cd_site_packages, create_virtualenv, print_all_versions,
+    activate_virtualenv, cd_site_packages, create_virtualenv, get_version, print_all_versions,
     print_project_versions, remove_project, remove_virtualenv, set_project_directory,
     unset_project_directory,
 };
@@ -29,7 +29,7 @@ enum Commands {
     /// Activate a virtualenv given a Project string and a Python version
     Activate {
         project: String,
-        version: Version,
+        version: Option<Version>,
         #[arg(long)]
         no_cd: bool,
         #[arg(short, long, default_value=None, default_missing_value=".", num_args=0..=1)]
@@ -100,6 +100,10 @@ fn run() -> Result<(), Error> {
             no_cd,
             directory,
         } => {
+            let version = match version {
+                Some(version) => version,
+                None => get_version(&project)?,
+            };
             activate_virtualenv(&version, &project, no_cd, directory)?;
         }
         Commands::SetShell { shell, project } => set_shell(&shell, project.as_deref())?,

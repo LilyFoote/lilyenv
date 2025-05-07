@@ -186,3 +186,17 @@ pub fn print_all_versions() -> Result<(), Error> {
     }
     Ok(())
 }
+
+pub fn get_version(project: &str) -> Result<Version, Error> {
+    let virtualenvs = project_dir(&project);
+    let versions =
+        list_versions(virtualenvs).map_err(|_| Error::NoVersions(project.to_string()))?;
+    match versions.len() {
+        1 => versions[0].parse::<Version>(),
+        0 => Err(Error::NoVersions(project.to_string())),
+        _ => Err(Error::MultipleVersions(
+            project.to_string(),
+            versions.join(" "),
+        )),
+    }
+}
