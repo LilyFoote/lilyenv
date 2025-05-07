@@ -22,4 +22,8 @@ pub enum Error {
     Platform(String),
     #[error(transparent)]
     EnvVar(#[from] std::env::VarError),
+    #[error("Cannot activate {0}, no virtualenvs available, choose a version to download")]
+    NoVersions(String),
+    #[error("Cannot activate {0}, you must choose a version:\n{1}")]
+    MultipleVersions(String, String),
 }
