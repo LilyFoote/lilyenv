@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::error::Error;
 use crate::version::{parse_cpython_filename, parse_pypy_url, Version, PYPY_DOWNLOAD_URL};
 use current_platform::CURRENT_PLATFORM;
@@ -12,6 +14,33 @@ pub struct Python {
     pub release_tag: String,
     pub debug: bool,
     pub freethreaded: bool,
+}
+
+impl PartialEq for Python {
+    fn eq(&self, other: &Self) -> bool {
+        self.version == other.version
+            && self.debug == other.debug
+            && self.freethreaded == other.freethreaded
+            && self.release_tag == other.release_tag
+    }
+}
+
+impl Eq for Python {}
+
+impl Ord for Python {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.version
+            .cmp(&other.version)
+            .then(self.release_tag.cmp(&other.release_tag).reverse())
+            .then(self.debug.cmp(&other.debug))
+            .then(self.freethreaded.cmp(&other.freethreaded))
+    }
+}
+
+impl PartialOrd for Python {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 async fn _cpython_releases() -> Result<Vec<Python>, Error> {
@@ -48,7 +77,15 @@ async fn _cpython_releases() -> Result<Vec<Python>, Error> {
                 freethreaded: version.freethreaded,
             })
         })
-        .collect()
+        .collect::<Result<Vec<Python>, Error>>()?;
+
+    let mut versions: Vec<Python> = releases
+        .into_iter()
+        .filter(|python| python.debug || python.freethreaded || python.name.ends_with(".tar.gz"))
+        .collect();
+    versions.sort_unstable();
+    versions.dedup_by_key(|python| (python.version, python.debug, python.freethreaded));
+    Ok(versions)
 }
 
 pub async fn cpython_releases() -> Result<Vec<Python>, Error> {
