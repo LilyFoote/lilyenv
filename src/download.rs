@@ -21,8 +21,7 @@ pub fn print_available_downloads() -> Result<(), Error> {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
-    let mut releases = rt.block_on(cpython_releases())?;
-    releases.sort_unstable_by_key(|p| p.version);
+    let releases = rt.block_on(cpython_releases())?;
     for python in releases {
         println!("{} ({})", python.version, python.release_tag);
     }
