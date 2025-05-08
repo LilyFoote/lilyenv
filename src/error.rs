@@ -26,4 +26,8 @@ pub enum Error {
     NoVersions(String),
     #[error("Cannot activate {0}, you must choose a version:\n{1}")]
     MultipleVersions(String, String),
+    #[error("Failed to get CPython download information from GitHub API.")]
+    CPythonDownloadError,
+    #[error("Failed to get CPython download information from GitHub API due to rate limiting.")]
+    CPythonDownloadRateLimit,
 }

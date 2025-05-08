@@ -19,8 +19,9 @@ clap = { version = "4.5.26", features = ["derive"] }
 current_platform = "0.2.0"
 directories = "6.0.0"
 flate2 = "1.0.35"
+http = "1.3.1"
 nom = "7.1.3"
-octocrab = "0.43.0"
+octocrab = "0.44.1"
 reqwest = { version = "0.12.12", features = ["blocking"] }
 scraper = "0.22.0"
 tar = "0.4.43"

@@ -1,6 +1,7 @@
 use crate::error::Error;
 use crate::version::{parse_cpython_filename, parse_pypy_url, Version, PYPY_DOWNLOAD_URL};
 use current_platform::CURRENT_PLATFORM;
+use octocrab::Error as OctocrabError;
 use url::Url;
 
 #[derive(Debug)]
@@ -13,14 +14,16 @@ pub struct Python {
     pub freethreaded: bool,
 }
 
-pub async fn cpython_releases() -> Result<Vec<Python>, Error> {
+async fn _cpython_releases() -> Result<Vec<Python>, Error> {
     let octocrab = octocrab::instance();
-    octocrab
+    let releases = octocrab
         .repos("indygreg", "python-build-standalone")
         .releases()
         .list()
         .send()
-        .await?
+        .await?;
+
+    let releases = releases
         .items
         .into_iter()
         .filter(|release| {
@@ -46,6 +49,56 @@ pub async fn cpython_releases() -> Result<Vec<Python>, Error> {
             })
         })
         .collect()
+}
+
+pub async fn cpython_releases() -> Result<Vec<Python>, Error> {
+    let mut backoff = 500;
+    for _ in 1..=5 {
+        match _cpython_releases().await {
+            Ok(releases) => return Ok(releases),
+            Err(Error::Octocrab(e)) => match &e {
+                OctocrabError::GitHub { source, .. } => {
+                    if source.status_code.is_server_error() {
+                        eprintln!("Github server error, retrying");
+                        tokio::time::sleep(tokio::time::Duration::from_millis(backoff)).await;
+                        backoff *= 2;
+                        continue;
+                    } else if source.status_code == http::StatusCode::TOO_MANY_REQUESTS
+                        || source.status_code == http::StatusCode::FORBIDDEN
+                    {
+                        return Err(Error::CPythonDownloadRateLimit);
+                    } else {
+                        return Err(Error::Octocrab(e));
+                    }
+                }
+                OctocrabError::Serde { .. } => {
+                    eprintln!("Github server error, retrying");
+                    tokio::time::sleep(tokio::time::Duration::from_millis(backoff)).await;
+                    backoff *= 2;
+                    continue;
+                }
+                _ => return Err(Error::Octocrab(e)),
+            },
+            Err(e) => return Err(e),
+        }
+    }
+    match _cpython_releases().await {
+        Ok(releases) => return Ok(releases),
+        Err(Error::Octocrab(e)) => match &e {
+            OctocrabError::GitHub { source, .. } => {
+                if source.status_code == http::StatusCode::TOO_MANY_REQUESTS
+                    || source.status_code == http::StatusCode::FORBIDDEN
+                {
+                    return Err(Error::CPythonDownloadRateLimit);
+                } else {
+                    return Err(Error::Octocrab(e));
+                }
+            }
+            OctocrabError::Serde { .. } => return Err(Error::CPythonDownloadError),
+            _ => return Err(Error::Octocrab(e)),
+        },
+        Err(e) => return Err(e),
+    }
 }
 
 fn pypy_platform_tag() -> Result<&'static str, Error> {
