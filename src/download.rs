@@ -45,8 +45,9 @@ fn download_cpython(version: &Version, upgrade: bool) -> Result<(), Error> {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
-    let python = match rt
-        .block_on(cpython_releases())?
+    let mut releases = rt.block_on(cpython_releases())?;
+    releases.reverse();
+    let python = match releases
         .into_iter()
         .find(|python| python.version.compatible(version))
     {
